@@ -19,42 +19,6 @@ final class PostTypeRegistrar
         register_post_type(self::ALBUM_POST_TYPE, $this->getAlbumPostTypeArgs());
         register_post_type(self::TRACK_POST_TYPE, $this->getTrackPostTypeArgs());
 
-        $this->registerTrackMeta();
-    }
-
-    public function registerTrackMeta(): void
-    {
-        register_post_meta(
-            self::TRACK_POST_TYPE,
-            '_campwp_album_id',
-            [
-                'single' => true,
-                'type' => 'integer',
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => 'absint',
-                'auth_callback' => static function (): bool {
-                    return current_user_can('edit_posts');
-                },
-            ]
-        );
-
-        register_post_meta(
-            self::TRACK_POST_TYPE,
-            '_campwp_track_order',
-            [
-                'single' => true,
-                'type' => 'integer',
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => static function ($value): int {
-                    return max(0, absint($value));
-                },
-                'auth_callback' => static function (): bool {
-                    return current_user_can('edit_posts');
-                },
-            ]
-        );
     }
 
     /**

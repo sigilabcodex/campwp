@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace CampWP\Admin;
 
+use CampWP\Admin\Metadata\CoreMetadataMetaBox;
+use CampWP\Domain\Metadata\MetadataKeys;
+
 final class AdminService
 {
-    private const TRACK_META_ALBUM_ID = '_campwp_album_id';
-    private const TRACK_META_ORDER = '_campwp_track_order';
     private const NONCE_ACTION = 'campwp_save_album_tracks';
     private const NONCE_NAME = 'campwp_album_tracks_nonce';
 
     public function register(): void
     {
+        (new CoreMetadataMetaBox())->register();
+
         add_action('add_meta_boxes', [$this, 'registerAlbumTracksMetaBox']);
 
         foreach ($this->getAlbumPostTypes() as $albumPostType) {
@@ -45,7 +48,7 @@ final class AdminService
         $selectedById = [];
 
         foreach ($selectedTracks as $selectedTrack) {
-            $selectedById[(int) $selectedTrack->ID] = (int) get_post_meta((int) $selectedTrack->ID, self::TRACK_META_ORDER, true);
+            $selectedById[(int) $selectedTrack->ID] = (int) get_post_meta((int) $selectedTrack->ID, MetadataKeys::TRACK_ORDER, true);
         }
 
         $trackPosts = get_posts([
@@ -72,7 +75,7 @@ final class AdminService
 
         foreach ($trackPosts as $trackPost) {
             $trackId = (int) $trackPost->ID;
-            $assignedAlbumId = (int) get_post_meta($trackId, self::TRACK_META_ALBUM_ID, true);
+            $assignedAlbumId = (int) get_post_meta($trackId, MetadataKeys::TRACK_ALBUM_ID, true);
             $isSelected = isset($selectedById[$trackId]);
             $orderValue = $selectedById[$trackId] ?? 0;
 
@@ -181,14 +184,14 @@ final class AdminService
                 continue;
             }
 
-            delete_post_meta($currentTrackId, self::TRACK_META_ALBUM_ID);
-            delete_post_meta($currentTrackId, self::TRACK_META_ORDER);
+            delete_post_meta($currentTrackId, MetadataKeys::TRACK_ALBUM_ID);
+            delete_post_meta($currentTrackId, MetadataKeys::TRACK_ORDER);
         }
 
         $orderPosition = 1;
         foreach ($validSelectedIds as $trackId) {
-            update_post_meta($trackId, self::TRACK_META_ALBUM_ID, $postId);
-            update_post_meta($trackId, self::TRACK_META_ORDER, $orderPosition);
+            update_post_meta($trackId, MetadataKeys::TRACK_ALBUM_ID, $postId);
+            update_post_meta($trackId, MetadataKeys::TRACK_ORDER, $orderPosition);
             $orderPosition++;
         }
     }
@@ -204,13 +207,13 @@ final class AdminService
             'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
             'meta_query' => [
                 [
-                    'key' => self::TRACK_META_ALBUM_ID,
+                    'key' => MetadataKeys::TRACK_ALBUM_ID,
                     'value' => $albumId,
                     'compare' => '=',
                     'type' => 'NUMERIC',
                 ],
             ],
-            'meta_key' => self::TRACK_META_ORDER,
+            'meta_key' => MetadataKeys::TRACK_ORDER,
             'orderby' => ['meta_value_num' => 'ASC', 'ID' => 'ASC'],
             'suppress_filters' => false,
         ]);

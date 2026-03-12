@@ -55,6 +55,68 @@ final class PostTypeRegistrar
                 },
             ]
         );
+
+        register_post_meta(
+            self::TRACK_POST_TYPE,
+            '_campwp_audio_attachment_id',
+            [
+                'single' => true,
+                'type' => 'integer',
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => 'absint',
+                'auth_callback' => static function (): bool {
+                    return current_user_can('edit_posts');
+                },
+            ]
+        );
+
+        register_post_meta(
+            self::TRACK_POST_TYPE,
+            '_campwp_track_artist',
+            [
+                'single' => true,
+                'type' => 'string',
+                'default' => '',
+                'show_in_rest' => true,
+                'sanitize_callback' => 'sanitize_text_field',
+                'auth_callback' => static function (): bool {
+                    return current_user_can('edit_posts');
+                },
+            ]
+        );
+
+        register_post_meta(
+            self::TRACK_POST_TYPE,
+            '_campwp_track_duration',
+            [
+                'single' => true,
+                'type' => 'number',
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => static function ($value): float {
+                    return max(0.0, (float) $value);
+                },
+                'auth_callback' => static function (): bool {
+                    return current_user_can('edit_posts');
+                },
+            ]
+        );
+
+        register_post_meta(
+            self::TRACK_POST_TYPE,
+            '_campwp_track_has_artwork',
+            [
+                'single' => true,
+                'type' => 'boolean',
+                'default' => false,
+                'show_in_rest' => true,
+                'sanitize_callback' => 'rest_sanitize_boolean',
+                'auth_callback' => static function (): bool {
+                    return current_user_can('edit_posts');
+                },
+            ]
+        );
     }
 
     /**

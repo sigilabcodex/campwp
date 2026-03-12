@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace CampWP\Admin;
 
+use CampWP\Admin\Track\TrackAudioAttachmentService;
+use CampWP\Infrastructure\Storage\LocalUploadsAudioStorageAdapter;
+
 final class AdminService
 {
     private const TRACK_META_ALBUM_ID = '_campwp_album_id';
@@ -13,11 +16,29 @@ final class AdminService
 
     public function register(): void
     {
+        (new TrackAudioAttachmentService(new LocalUploadsAudioStorageAdapter()))->register();
+
         add_action('add_meta_boxes', [$this, 'registerAlbumTracksMetaBox']);
+        add_action('admin_notices', [$this, 'maybeRenderAudioErrorNotice']);
 
         foreach ($this->getAlbumPostTypes() as $albumPostType) {
             add_action('save_post_' . $albumPostType, [$this, 'saveAlbumTracksMetaBox'], 10, 2);
         }
+    }
+
+    public function maybeRenderAudioErrorNotice(): void
+    {
+        if (! isset($_GET['campwp_audio_error'])) {
+            return;
+        }
+
+        $errorMessage = sanitize_text_field(wp_unslash((string) $_GET['campwp_audio_error']));
+
+        if ($errorMessage === '') {
+            return;
+        }
+
+        echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($errorMessage) . '</p></div>';
     }
 
     public function registerAlbumTracksMetaBox(): void

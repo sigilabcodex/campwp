@@ -5,12 +5,20 @@ declare(strict_types=1);
 namespace CampWP\Admin;
 
 use CampWP\Admin\Metadata\CoreMetadataMetaBox;
+use CampWP\Domain\ContentModel\AlbumTrackRelationshipService;
 use CampWP\Domain\Metadata\MetadataKeys;
 
 final class AdminService
 {
     private const NONCE_ACTION = 'campwp_save_album_tracks';
     private const NONCE_NAME = 'campwp_album_tracks_nonce';
+
+    private AlbumTrackRelationshipService $albumTrackRelationships;
+
+    public function __construct(?AlbumTrackRelationshipService $albumTrackRelationships = null)
+    {
+        $this->albumTrackRelationships = $albumTrackRelationships ?? new AlbumTrackRelationshipService();
+    }
 
     public function register(): void
     {
@@ -44,21 +52,14 @@ final class AdminService
     {
         wp_nonce_field(self::NONCE_ACTION, self::NONCE_NAME);
 
-        $selectedTracks = $this->getSelectedTracks((int) $post->ID);
+        $selectedTracks = $this->albumTrackRelationships->getTracksForAlbum((int) $post->ID);
         $selectedById = [];
 
         foreach ($selectedTracks as $selectedTrack) {
             $selectedById[(int) $selectedTrack->ID] = (int) get_post_meta((int) $selectedTrack->ID, MetadataKeys::TRACK_ORDER, true);
         }
 
-        $trackPosts = get_posts([
-            'post_type' => $this->getTrackPostType(),
-            'posts_per_page' => -1,
-            'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
-            'orderby' => 'title',
-            'order' => 'ASC',
-            'suppress_filters' => false,
-        ]);
+        $trackPosts = $this->albumTrackRelationships->getAssignableTracks();
 
         if ($trackPosts === []) {
             echo '<p>' . esc_html__('No tracks found. Create tracks first, then return to assign them to this album.', 'campwp') . '</p>';
@@ -145,80 +146,7 @@ final class AdminService
             $rawOrders = wp_unslash($rawTracks['order']);
         }
 
-        $validSelectedIds = [];
-        foreach ($selectedIds as $trackId) {
-            if (get_post_type($trackId) !== $this->getTrackPostType()) {
-                continue;
-            }
-
-            if (! current_user_can('edit_post', $trackId)) {
-                continue;
-            }
-
-            $validSelectedIds[] = $trackId;
-        }
-
-        usort(
-            $validSelectedIds,
-            static function (int $left, int $right) use ($rawOrders): int {
-                $leftOrder = isset($rawOrders[$left]) ? max(1, (int) $rawOrders[$left]) : PHP_INT_MAX;
-                $rightOrder = isset($rawOrders[$right]) ? max(1, (int) $rawOrders[$right]) : PHP_INT_MAX;
-
-                if ($leftOrder === $rightOrder) {
-                    return $left <=> $right;
-                }
-
-                return $leftOrder <=> $rightOrder;
-            }
-        );
-
-        $currentTrackIds = wp_list_pluck($this->getSelectedTracks($postId), 'ID');
-        $currentTrackIds = array_map('absint', $currentTrackIds);
-
-        foreach ($currentTrackIds as $currentTrackId) {
-            if (in_array($currentTrackId, $validSelectedIds, true)) {
-                continue;
-            }
-
-            if (! current_user_can('edit_post', $currentTrackId)) {
-                continue;
-            }
-
-            delete_post_meta($currentTrackId, MetadataKeys::TRACK_ALBUM_ID);
-            delete_post_meta($currentTrackId, MetadataKeys::TRACK_ORDER);
-        }
-
-        $orderPosition = 1;
-        foreach ($validSelectedIds as $trackId) {
-            update_post_meta($trackId, MetadataKeys::TRACK_ALBUM_ID, $postId);
-            update_post_meta($trackId, MetadataKeys::TRACK_ORDER, $orderPosition);
-            $orderPosition++;
-        }
-    }
-
-    /**
-     * @return list<\WP_Post>
-     */
-    private function getSelectedTracks(int $albumId): array
-    {
-        $tracks = get_posts([
-            'post_type' => $this->getTrackPostType(),
-            'posts_per_page' => -1,
-            'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
-            'meta_query' => [
-                [
-                    'key' => MetadataKeys::TRACK_ALBUM_ID,
-                    'value' => $albumId,
-                    'compare' => '=',
-                    'type' => 'NUMERIC',
-                ],
-            ],
-            'meta_key' => MetadataKeys::TRACK_ORDER,
-            'orderby' => ['meta_value_num' => 'ASC', 'ID' => 'ASC'],
-            'suppress_filters' => false,
-        ]);
-
-        return is_array($tracks) ? $tracks : [];
+        $this->albumTrackRelationships->saveAlbumTrackAssignments($postId, $selectedIds, $rawOrders);
     }
 
     /**
@@ -235,14 +163,4 @@ final class AdminService
         return array_values(array_unique(array_filter(array_map('sanitize_key', $postTypes))));
     }
 
-    private function getTrackPostType(): string
-    {
-        $postType = apply_filters('campwp_track_post_type', 'campwp_track');
-
-        if (! is_string($postType) || $postType === '') {
-            return 'campwp_track';
-        }
-
-        return sanitize_key($postType);
-    }
 }

@@ -45,31 +45,12 @@ final class MetadataSanitizer
 
     public function sanitizeDuration(string $value): string
     {
-        $value = trim($value);
-
-        if ($value === '') {
-            return '';
-        }
-
-        if (preg_match('/^\d{1,2}:\d{2}(?::\d{2})?$/', $value) !== 1) {
-            return '';
-        }
-
-        return $value;
+        return sanitize_text_field($value);
     }
 
     public function sanitizeIsrc(string $value): string
     {
-        $normalized = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $value) ?? '');
-
-        if ($normalized === '') {
-            return '';
-        }
-
-        if (preg_match('/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/', $normalized) !== 1) {
-            return '';
-        }
-
-        return $normalized;
+        $normalized = strtoupper(sanitize_text_field($value));
+        return preg_replace('/[^A-Z0-9\-]/', '', $normalized) ?? '';
     }
 }

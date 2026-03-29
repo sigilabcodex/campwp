@@ -61,8 +61,8 @@ final class MetadataSchemaRegistrar
     {
         $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_SUBTITLE);
         $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_CATALOG_NUMBER);
-        $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_ARTIST_DISPLAY_NAME);
-        $this->registerTextareaMeta($albumPostType, MetadataKeys::ALBUM_CREDITS);
+        $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_ARTIST_DISPLAY);
+        $this->registerTextareaMeta($albumPostType, MetadataKeys::ALBUM_CREDITS_OVERRIDE);
 
         register_post_meta(
             $albumPostType,
@@ -81,7 +81,7 @@ final class MetadataSchemaRegistrar
     private function registerTrackMetadata(string $trackPostType): void
     {
         $this->registerTextMeta($trackPostType, MetadataKeys::TRACK_SUBTITLE);
-        $this->registerTextMeta($trackPostType, MetadataKeys::TRACK_ARTIST_DISPLAY_NAME);
+        $this->registerTextMeta($trackPostType, MetadataKeys::TRACK_ARTIST_DISPLAY);
         $this->registerTextareaMeta($trackPostType, MetadataKeys::TRACK_CREDITS);
         $this->registerTextareaMeta($trackPostType, MetadataKeys::TRACK_LYRICS);
 

@@ -58,8 +58,8 @@ final class CoreMetadataMetaBox
         $subtitle = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_SUBTITLE);
         $releaseDate = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_RELEASE_DATE);
         $catalogNumber = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_CATALOG_NUMBER);
-        $artistDisplayName = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_ARTIST_DISPLAY_NAME);
-        $credits = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_CREDITS);
+        $artistDisplayName = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_ARTIST_DISPLAY);
+        $creditsOverride = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_CREDITS_OVERRIDE);
 
         echo '<p>' . esc_html__('Featured image is used as album cover art.', 'campwp') . '</p>';
 
@@ -67,7 +67,7 @@ final class CoreMetadataMetaBox
         $this->renderDateField('campwp_album_metadata[release_date]', __('Release Date', 'campwp'), $releaseDate, true);
         $this->renderTextField('campwp_album_metadata[catalog_number]', __('Catalog Number', 'campwp'), $catalogNumber);
         $this->renderTextField('campwp_album_metadata[artist_display_name]', __('Artist Display Name', 'campwp'), $artistDisplayName, true);
-        $this->renderTextareaField('campwp_album_metadata[credits]', __('Credits / Liner Notes Override', 'campwp'), $credits);
+        $this->renderTextareaField('campwp_album_metadata[credits_override]', __('Credits / Liner Notes Override', 'campwp'), $creditsOverride);
     }
 
     /**
@@ -80,7 +80,7 @@ final class CoreMetadataMetaBox
         $trackNumber = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_NUMBER);
         $subtitle = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_SUBTITLE);
         $duration = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_DURATION);
-        $artistDisplayName = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_ARTIST_DISPLAY_NAME);
+        $artistDisplayName = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_ARTIST_DISPLAY);
         $credits = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_CREDITS);
         $lyrics = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_LYRICS);
         $isrc = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_ISRC);
@@ -133,8 +133,8 @@ final class CoreMetadataMetaBox
         $this->updateMeta($postId, MetadataKeys::ALBUM_SUBTITLE, $this->sanitizer->sanitizeText((string) ($values['subtitle'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_RELEASE_DATE, $this->sanitizer->sanitizeReleaseDate((string) ($values['release_date'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_CATALOG_NUMBER, $this->sanitizer->sanitizeText((string) ($values['catalog_number'] ?? '')));
-        $this->updateMeta($postId, MetadataKeys::ALBUM_ARTIST_DISPLAY_NAME, $this->sanitizer->sanitizeText((string) ($values['artist_display_name'] ?? '')));
-        $this->updateMeta($postId, MetadataKeys::ALBUM_CREDITS, $this->sanitizer->sanitizeTextarea((string) ($values['credits'] ?? '')));
+        $this->updateMeta($postId, MetadataKeys::ALBUM_ARTIST_DISPLAY, $this->sanitizer->sanitizeText((string) ($values['artist_display_name'] ?? '')));
+        $this->updateMeta($postId, MetadataKeys::ALBUM_CREDITS_OVERRIDE, $this->sanitizer->sanitizeTextarea((string) ($values['credits_override'] ?? '')));
     }
 
     private function saveTrackMetadata(int $postId): void
@@ -153,7 +153,7 @@ final class CoreMetadataMetaBox
         $this->updateMeta($postId, MetadataKeys::TRACK_NUMBER, $this->sanitizer->sanitizePositiveInteger((string) ($values['track_number'] ?? '0')));
         $this->updateMeta($postId, MetadataKeys::TRACK_SUBTITLE, $this->sanitizer->sanitizeText((string) ($values['subtitle'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_DURATION, $this->sanitizer->sanitizeDuration((string) ($values['duration'] ?? '')));
-        $this->updateMeta($postId, MetadataKeys::TRACK_ARTIST_DISPLAY_NAME, $this->sanitizer->sanitizeText((string) ($values['artist_display_name'] ?? '')));
+        $this->updateMeta($postId, MetadataKeys::TRACK_ARTIST_DISPLAY, $this->sanitizer->sanitizeText((string) ($values['artist_display_name'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_CREDITS, $this->sanitizer->sanitizeTextarea((string) ($values['credits'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_LYRICS, $this->sanitizer->sanitizeTextarea((string) ($values['lyrics'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_ISRC, $this->sanitizer->sanitizeIsrc((string) ($values['isrc'] ?? '')));

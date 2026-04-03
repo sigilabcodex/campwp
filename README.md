@@ -27,7 +27,12 @@ This repository currently contains a minimal, production-safe scaffold for the C
 4. Activation and deactivation hooks are registered.
 5. On `plugins_loaded`, `CampWP\\Core\\Application` runs and initializes module placeholders.
 
-## Notes
+## Current v1 editorial model
 
-- No business features, CPTs, UI, integrations, or storage schema are implemented yet.
-- Scaffold is namespaced and Composer-ready for long-term growth.
+- `campwp_track` posts can exist without any parent release (standalone/loose tracks).
+- `campwp_album` posts represent releases and now include a release type meta field (`single`, `ep`, `album`, `compilation`, `other`).
+- Album-to-track assignment is currently one-album-per-track and is stored on the track itself using:
+  - `_campwp_album_id`
+  - `_campwp_track_order`
+- Track metadata includes an artist display override field for compilation and guest-credit use-cases.
+- Album metadata now includes a minimal `_campwp_album_bonus_items` placeholder (`[]`) for future album bonus-download workflows.

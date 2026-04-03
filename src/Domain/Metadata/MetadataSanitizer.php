@@ -6,6 +6,11 @@ namespace CampWP\Domain\Metadata;
 
 final class MetadataSanitizer
 {
+    /**
+     * @var list<string>
+     */
+    private const ALBUM_RELEASE_TYPES = ['single', 'ep', 'album', 'compilation', 'other'];
+
     public function sanitizeText(string $value): string
     {
         return sanitize_text_field($value);
@@ -52,5 +57,21 @@ final class MetadataSanitizer
     {
         $normalized = strtoupper(sanitize_text_field($value));
         return preg_replace('/[^A-Z0-9\-]/', '', $normalized) ?? '';
+    }
+
+    public function sanitizeReleaseType(string $value): string
+    {
+        $normalized = sanitize_key($value);
+
+        if (! in_array($normalized, self::ALBUM_RELEASE_TYPES, true)) {
+            return 'album';
+        }
+
+        return $normalized;
+    }
+
+    public function sanitizeBonusItemsPlaceholder(string $value): string
+    {
+        return '[]';
     }
 }

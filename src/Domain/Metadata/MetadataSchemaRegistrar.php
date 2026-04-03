@@ -63,6 +63,8 @@ final class MetadataSchemaRegistrar
         $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_CATALOG_NUMBER);
         $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_ARTIST_DISPLAY);
         $this->registerTextareaMeta($albumPostType, MetadataKeys::ALBUM_CREDITS_OVERRIDE);
+        $this->registerReleaseTypeMeta($albumPostType);
+        $this->registerBonusItemsPlaceholderMeta($albumPostType);
 
         register_post_meta(
             $albumPostType,
@@ -73,6 +75,38 @@ final class MetadataSchemaRegistrar
                 'default' => '',
                 'show_in_rest' => true,
                 'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeReleaseDate((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+    }
+
+    private function registerReleaseTypeMeta(string $albumPostType): void
+    {
+        register_post_meta(
+            $albumPostType,
+            MetadataKeys::ALBUM_RELEASE_TYPE,
+            [
+                'type' => 'string',
+                'single' => true,
+                'default' => 'album',
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeReleaseType((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+    }
+
+    private function registerBonusItemsPlaceholderMeta(string $albumPostType): void
+    {
+        register_post_meta(
+            $albumPostType,
+            MetadataKeys::ALBUM_BONUS_ITEMS,
+            [
+                'type' => 'string',
+                'single' => true,
+                'default' => '[]',
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeBonusItemsPlaceholder((string) $value),
                 'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
             ]
         );

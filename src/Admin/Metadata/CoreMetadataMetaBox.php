@@ -13,6 +13,7 @@ final class CoreMetadataMetaBox
     private const ALBUM_NONCE_NAME = 'campwp_album_core_metadata_nonce';
     private const TRACK_NONCE_ACTION = 'campwp_save_track_core_metadata';
     private const TRACK_NONCE_NAME = 'campwp_track_core_metadata_nonce';
+    private const RELEASE_TYPE_OPTIONS = ['single', 'ep', 'album', 'compilation', 'other'];
 
     private MetadataSanitizer $sanitizer;
 
@@ -60,14 +61,18 @@ final class CoreMetadataMetaBox
         $catalogNumber = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_CATALOG_NUMBER);
         $artistDisplayName = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_ARTIST_DISPLAY);
         $creditsOverride = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_CREDITS_OVERRIDE);
+        $releaseType = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_RELEASE_TYPE);
+        $releaseType = $releaseType !== '' ? $releaseType : 'album';
 
         echo '<p>' . esc_html__('Featured image is used as album cover art.', 'campwp') . '</p>';
 
         $this->renderTextField('campwp_album_metadata[subtitle]', __('Subtitle', 'campwp'), $subtitle);
         $this->renderDateField('campwp_album_metadata[release_date]', __('Release Date', 'campwp'), $releaseDate, true);
         $this->renderTextField('campwp_album_metadata[catalog_number]', __('Catalog Number', 'campwp'), $catalogNumber);
+        $this->renderSelectField('campwp_album_metadata[release_type]', __('Release Type', 'campwp'), $releaseType, self::RELEASE_TYPE_OPTIONS);
         $this->renderTextField('campwp_album_metadata[artist_display_name]', __('Artist Display Name', 'campwp'), $artistDisplayName, true);
         $this->renderTextareaField('campwp_album_metadata[credits_override]', __('Credits / Liner Notes Override', 'campwp'), $creditsOverride);
+        echo '<p><em>' . esc_html__('Tracks can remain standalone when no album assignment is set. In v1, each track can belong to at most one album.', 'campwp') . '</em></p>';
     }
 
     /**
@@ -88,7 +93,7 @@ final class CoreMetadataMetaBox
         $this->renderNumberField('campwp_track_metadata[track_number]', __('Track Number', 'campwp'), $trackNumber, true);
         $this->renderTextField('campwp_track_metadata[subtitle]', __('Subtitle', 'campwp'), $subtitle);
         $this->renderTextField('campwp_track_metadata[duration]', __('Duration (MM:SS or HH:MM:SS)', 'campwp'), $duration);
-        $this->renderTextField('campwp_track_metadata[artist_display_name]', __('Artist Display Name', 'campwp'), $artistDisplayName, true);
+        $this->renderTextField('campwp_track_metadata[artist_display_name]', __('Artist Display Override', 'campwp'), $artistDisplayName);
         $this->renderTextareaField('campwp_track_metadata[credits]', __('Credits', 'campwp'), $credits);
         $this->renderTextareaField('campwp_track_metadata[lyrics]', __('Lyrics', 'campwp'), $lyrics);
         $this->renderTextField('campwp_track_metadata[isrc]', __('ISRC', 'campwp'), $isrc);
@@ -133,8 +138,10 @@ final class CoreMetadataMetaBox
         $this->updateMeta($postId, MetadataKeys::ALBUM_SUBTITLE, $this->sanitizer->sanitizeText((string) ($values['subtitle'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_RELEASE_DATE, $this->sanitizer->sanitizeReleaseDate((string) ($values['release_date'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_CATALOG_NUMBER, $this->sanitizer->sanitizeText((string) ($values['catalog_number'] ?? '')));
+        $this->updateMeta($postId, MetadataKeys::ALBUM_RELEASE_TYPE, $this->sanitizer->sanitizeReleaseType((string) ($values['release_type'] ?? 'album')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_ARTIST_DISPLAY, $this->sanitizer->sanitizeText((string) ($values['artist_display_name'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_CREDITS_OVERRIDE, $this->sanitizer->sanitizeTextarea((string) ($values['credits_override'] ?? '')));
+        $this->updateMeta($postId, MetadataKeys::ALBUM_BONUS_ITEMS, '[]');
     }
 
     private function saveTrackMetadata(int $postId): void
@@ -229,6 +236,26 @@ final class CoreMetadataMetaBox
         echo '<label>';
         echo '<strong>' . esc_html($label) . '</strong><br />';
         echo '<textarea class="widefat" rows="6" name="' . esc_attr($name) . '">' . esc_textarea($value) . '</textarea>';
+        echo '</label>';
+        echo '</p>';
+    }
+
+    /**
+     * @param list<string> $options
+     */
+    private function renderSelectField(string $name, string $label, string $value, array $options): void
+    {
+        echo '<p>';
+        echo '<label>';
+        echo '<strong>' . esc_html($label) . '</strong><br />';
+        echo '<select class="widefat" name="' . esc_attr($name) . '">';
+
+        foreach ($options as $option) {
+            $label = $option === 'ep' ? 'EP' : ucfirst($option);
+            echo '<option value="' . esc_attr($option) . '"' . selected($value, $option, false) . '>' . esc_html($label) . '</option>';
+        }
+
+        echo '</select>';
         echo '</label>';
         echo '</p>';
     }

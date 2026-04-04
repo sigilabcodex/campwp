@@ -14,6 +14,8 @@ final class MetadataKeys
     public const ALBUM_CATALOG_NUMBER = '_campwp_album_catalog_number';
     public const ALBUM_ARTIST_DISPLAY = '_campwp_album_artist_display';
     public const ALBUM_CREDITS_OVERRIDE = '_campwp_album_credits_override';
+    public const ALBUM_LABEL_NAME = '_campwp_album_label_name';
+    public const ALBUM_RELEASE_NOTES = '_campwp_album_release_notes';
     public const ALBUM_RELEASE_TYPE = '_campwp_album_release_type';
     public const ALBUM_BONUS_ITEMS = '_campwp_album_bonus_items';
 
@@ -24,4 +26,5 @@ final class MetadataKeys
     public const TRACK_CREDITS = '_campwp_track_credits';
     public const TRACK_LYRICS = '_campwp_track_lyrics';
     public const TRACK_ISRC = '_campwp_track_isrc';
+    public const TRACK_ARTWORK_ID = '_campwp_track_artwork_id';
 }

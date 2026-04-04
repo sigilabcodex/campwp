@@ -62,7 +62,9 @@ final class MetadataSchemaRegistrar
         $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_SUBTITLE);
         $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_CATALOG_NUMBER);
         $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_ARTIST_DISPLAY);
+        $this->registerTextMeta($albumPostType, MetadataKeys::ALBUM_LABEL_NAME);
         $this->registerTextareaMeta($albumPostType, MetadataKeys::ALBUM_CREDITS_OVERRIDE);
+        $this->registerTextareaMeta($albumPostType, MetadataKeys::ALBUM_RELEASE_NOTES);
         $this->registerReleaseTypeMeta($albumPostType);
         $this->registerBonusItemsPlaceholderMeta($albumPostType);
 
@@ -154,6 +156,19 @@ final class MetadataSchemaRegistrar
                 'default' => '',
                 'show_in_rest' => true,
                 'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeIsrc((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_ARTWORK_ID,
+            [
+                'type' => 'integer',
+                'single' => true,
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
                 'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
             ]
         );

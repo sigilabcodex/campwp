@@ -59,6 +59,11 @@ final class MetadataSanitizer
         return preg_replace('/[^A-Z0-9\-]/', '', $normalized) ?? '';
     }
 
+    public function sanitizeAttachmentId(string $value): int
+    {
+        return max(0, absint($value));
+    }
+
     public function sanitizeReleaseType(string $value): string
     {
         $normalized = sanitize_key($value);

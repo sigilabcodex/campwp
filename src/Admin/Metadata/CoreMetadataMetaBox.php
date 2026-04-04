@@ -61,6 +61,8 @@ final class CoreMetadataMetaBox
         $catalogNumber = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_CATALOG_NUMBER);
         $artistDisplayName = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_ARTIST_DISPLAY);
         $creditsOverride = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_CREDITS_OVERRIDE);
+        $labelName = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_LABEL_NAME);
+        $releaseNotes = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_RELEASE_NOTES);
         $releaseType = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_RELEASE_TYPE);
         $releaseType = $releaseType !== '' ? $releaseType : 'album';
 
@@ -71,7 +73,9 @@ final class CoreMetadataMetaBox
         $this->renderTextField('campwp_album_metadata[catalog_number]', __('Catalog Number', 'campwp'), $catalogNumber);
         $this->renderSelectField('campwp_album_metadata[release_type]', __('Release Type', 'campwp'), $releaseType, self::RELEASE_TYPE_OPTIONS);
         $this->renderTextField('campwp_album_metadata[artist_display_name]', __('Artist Display Name', 'campwp'), $artistDisplayName, true);
+        $this->renderTextField('campwp_album_metadata[label_name]', __('Label Name', 'campwp'), $labelName);
         $this->renderTextareaField('campwp_album_metadata[credits_override]', __('Credits / Liner Notes Override', 'campwp'), $creditsOverride);
+        $this->renderTextareaField('campwp_album_metadata[release_notes]', __('Release Notes', 'campwp'), $releaseNotes);
         echo '<p><em>' . esc_html__('Tracks can remain standalone when no album assignment is set. In v1, each track can belong to at most one album.', 'campwp') . '</em></p>';
     }
 
@@ -89,6 +93,7 @@ final class CoreMetadataMetaBox
         $credits = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_CREDITS);
         $lyrics = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_LYRICS);
         $isrc = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_ISRC);
+        $artworkId = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_ARTWORK_ID);
 
         $this->renderNumberField('campwp_track_metadata[track_number]', __('Track Number', 'campwp'), $trackNumber, true);
         $this->renderTextField('campwp_track_metadata[subtitle]', __('Subtitle', 'campwp'), $subtitle);
@@ -97,6 +102,8 @@ final class CoreMetadataMetaBox
         $this->renderTextareaField('campwp_track_metadata[credits]', __('Credits', 'campwp'), $credits);
         $this->renderTextareaField('campwp_track_metadata[lyrics]', __('Lyrics', 'campwp'), $lyrics);
         $this->renderTextField('campwp_track_metadata[isrc]', __('ISRC', 'campwp'), $isrc);
+        $this->renderNumberField('campwp_track_metadata[artwork_id]', __('Track Artwork Attachment ID', 'campwp'), $artworkId);
+        echo '<p><em>' . esc_html__('Optional: store a Media Library attachment ID for track-specific artwork.', 'campwp') . '</em></p>';
     }
 
     /**
@@ -140,7 +147,9 @@ final class CoreMetadataMetaBox
         $this->updateMeta($postId, MetadataKeys::ALBUM_CATALOG_NUMBER, $this->sanitizer->sanitizeText((string) ($values['catalog_number'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_RELEASE_TYPE, $this->sanitizer->sanitizeReleaseType((string) ($values['release_type'] ?? 'album')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_ARTIST_DISPLAY, $this->sanitizer->sanitizeText((string) ($values['artist_display_name'] ?? '')));
+        $this->updateMeta($postId, MetadataKeys::ALBUM_LABEL_NAME, $this->sanitizer->sanitizeText((string) ($values['label_name'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_CREDITS_OVERRIDE, $this->sanitizer->sanitizeTextarea((string) ($values['credits_override'] ?? '')));
+        $this->updateMeta($postId, MetadataKeys::ALBUM_RELEASE_NOTES, $this->sanitizer->sanitizeTextarea((string) ($values['release_notes'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_BONUS_ITEMS, '[]');
     }
 
@@ -164,6 +173,7 @@ final class CoreMetadataMetaBox
         $this->updateMeta($postId, MetadataKeys::TRACK_CREDITS, $this->sanitizer->sanitizeTextarea((string) ($values['credits'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_LYRICS, $this->sanitizer->sanitizeTextarea((string) ($values['lyrics'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_ISRC, $this->sanitizer->sanitizeIsrc((string) ($values['isrc'] ?? '')));
+        $this->updateMeta($postId, MetadataKeys::TRACK_ARTWORK_ID, $this->sanitizer->sanitizeAttachmentId((string) ($values['artwork_id'] ?? '0')));
     }
 
     private function isValidNonce(string $nonceName, string $nonceAction): bool

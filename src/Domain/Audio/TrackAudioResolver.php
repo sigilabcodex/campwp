@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace CampWP\Domain\Audio;
 
+use CampWP\Domain\Media\MediaAsset;
+use CampWP\Domain\Media\MediaStorageProviderInterface;
 use CampWP\Domain\Metadata\MetadataKeys;
 
 final class TrackAudioResolver
 {
-    private AudioStorageProviderInterface $storageProvider;
+    private MediaStorageProviderInterface $storageProvider;
 
-    public function __construct(AudioStorageProviderInterface $storageProvider)
+    public function __construct(MediaStorageProviderInterface $storageProvider)
     {
         $this->storageProvider = $storageProvider;
     }
@@ -28,11 +30,17 @@ final class TrackAudioResolver
             return null;
         }
 
-        return $this->storageProvider->resolve($referenceId);
+        $asset = $this->storageProvider->resolve($referenceId);
+
+        if (! $asset instanceof MediaAsset || ! $this->storageProvider->isAudioReference($referenceId)) {
+            return null;
+        }
+
+        return new TrackAudioFile($asset->getReferenceId(), $asset->getUrl(), $asset->getMimeType(), $asset->getFilePath());
     }
 
     public function isValidTrackAudioReference(int $referenceId): bool
     {
-        return $referenceId > 0 && $this->storageProvider->isValidReference($referenceId);
+        return $referenceId > 0 && $this->storageProvider->isAudioReference($referenceId);
     }
 }

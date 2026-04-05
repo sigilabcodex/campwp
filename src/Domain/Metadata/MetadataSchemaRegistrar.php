@@ -66,7 +66,7 @@ final class MetadataSchemaRegistrar
         $this->registerTextareaMeta($albumPostType, MetadataKeys::ALBUM_CREDITS_OVERRIDE);
         $this->registerTextareaMeta($albumPostType, MetadataKeys::ALBUM_RELEASE_NOTES);
         $this->registerReleaseTypeMeta($albumPostType);
-        $this->registerBonusItemsPlaceholderMeta($albumPostType);
+        $this->registerBonusItemsMeta($albumPostType);
 
         register_post_meta(
             $albumPostType,
@@ -98,7 +98,7 @@ final class MetadataSchemaRegistrar
         );
     }
 
-    private function registerBonusItemsPlaceholderMeta(string $albumPostType): void
+    private function registerBonusItemsMeta(string $albumPostType): void
     {
         register_post_meta(
             $albumPostType,
@@ -108,7 +108,7 @@ final class MetadataSchemaRegistrar
                 'single' => true,
                 'default' => '[]',
                 'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeBonusItemsPlaceholder((string) $value),
+                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeBonusItems($value),
                 'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
             ]
         );

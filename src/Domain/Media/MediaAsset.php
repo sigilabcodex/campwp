@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace CampWP\Domain\Audio;
+namespace CampWP\Domain\Media;
 
-final class TrackAudioFile
+final class MediaAsset
 {
     private int $referenceId;
 
@@ -14,12 +14,15 @@ final class TrackAudioFile
 
     private string $filePath;
 
-    public function __construct(int $referenceId, string $url, string $mimeType, string $filePath)
+    private string $title;
+
+    public function __construct(int $referenceId, string $url, string $mimeType, string $filePath, string $title)
     {
         $this->referenceId = $referenceId;
         $this->url = $url;
         $this->mimeType = $mimeType;
         $this->filePath = $filePath;
+        $this->title = $title;
     }
 
     public function getReferenceId(): int
@@ -40,5 +43,10 @@ final class TrackAudioFile
     public function getFilePath(): string
     {
         return $this->filePath;
+    }
+
+    public function getTitle(): string
+    {
+        return $this->title;
     }
 }

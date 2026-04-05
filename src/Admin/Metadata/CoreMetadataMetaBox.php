@@ -6,9 +6,11 @@ namespace CampWP\Admin\Metadata;
 
 use CampWP\Domain\Audio\TrackAudioFile;
 use CampWP\Domain\Audio\TrackAudioResolver;
+use CampWP\Domain\Media\AlbumBonusAssetResolver;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Domain\Metadata\MetadataSanitizer;
-use CampWP\Infrastructure\Audio\WordPressMediaAudioStorageProvider;
+use CampWP\Domain\Media\MediaStorageProviderInterface;
+use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 
 final class CoreMetadataMetaBox
 {
@@ -22,17 +24,23 @@ final class CoreMetadataMetaBox
 
     private TrackAudioResolver $trackAudioResolver;
 
-    public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null)
+    private AlbumBonusAssetResolver $bonusAssetResolver;
+
+    private MediaStorageProviderInterface $mediaProvider;
+
+    public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null, ?AlbumBonusAssetResolver $bonusAssetResolver = null)
     {
         $this->sanitizer = $sanitizer ?? new MetadataSanitizer();
-        $this->trackAudioResolver = $trackAudioResolver ?? new TrackAudioResolver(new WordPressMediaAudioStorageProvider());
+        $this->mediaProvider = new WordPressMediaLibraryProvider();
+        $this->trackAudioResolver = $trackAudioResolver ?? new TrackAudioResolver($this->mediaProvider);
+        $this->bonusAssetResolver = $bonusAssetResolver ?? new AlbumBonusAssetResolver($this->mediaProvider);
     }
 
     public function register(): void
     {
         add_action('add_meta_boxes', [$this, 'registerMetaBoxes']);
         add_action('save_post', [$this, 'saveMetadata'], 10, 2);
-        add_action('admin_enqueue_scripts', [$this, 'enqueueTrackAudioFieldAssets']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueueMediaFieldAssets']);
     }
 
     public function registerMetaBoxes(): void
@@ -83,6 +91,8 @@ final class CoreMetadataMetaBox
         $this->renderTextField('campwp_album_metadata[label_name]', __('Label Name', 'campwp'), $labelName);
         $this->renderTextareaField('campwp_album_metadata[credits_override]', __('Credits / Liner Notes Override', 'campwp'), $creditsOverride);
         $this->renderTextareaField('campwp_album_metadata[release_notes]', __('Release Notes', 'campwp'), $releaseNotes);
+        $this->renderAlbumBonusAttachmentsField((int) $post->ID);
+
         echo '<p><em>' . esc_html__('Tracks can remain standalone when no album assignment is set. In v1, each track can belong to at most one album.', 'campwp') . '</em></p>';
     }
 
@@ -138,7 +148,7 @@ final class CoreMetadataMetaBox
         }
     }
 
-    public function enqueueTrackAudioFieldAssets(string $hookSuffix): void
+    public function enqueueMediaFieldAssets(string $hookSuffix): void
     {
         if (! in_array($hookSuffix, ['post.php', 'post-new.php'], true)) {
             return;
@@ -146,7 +156,7 @@ final class CoreMetadataMetaBox
 
         $screen = get_current_screen();
 
-        if (! $screen instanceof \WP_Screen || $screen->post_type !== $this->getTrackPostType()) {
+        if (! $screen instanceof \WP_Screen || ! in_array($screen->post_type, [$this->getTrackPostType(), $this->getAlbumPostType()], true)) {
             return;
         }
 
@@ -156,6 +166,46 @@ final class CoreMetadataMetaBox
         $script = <<<'JS'
 (function($){
     'use strict';
+
+    function readBonusItems($input) {
+        var value = $input.val();
+
+        if (!value) {
+            return [];
+        }
+
+        try {
+            var parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function writeBonusItems($input, items) {
+        $input.val(JSON.stringify(items));
+    }
+
+    function renderBonusList($container, items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            $container.html('<p><em>No bonus media selected.</em></p>');
+            return;
+        }
+
+        var html = '<ul>';
+
+        items.forEach(function(item, index) {
+            var label = item.label ? item.label : ('Attachment #' + item.reference_id);
+            html += '<li>' +
+                '<strong>' + label + '</strong> ' +
+                '<code>#' + item.reference_id + '</code> ' +
+                '<button type="button" class="button-link-delete campwp-bonus-remove" data-index="' + index + '">Remove</button>' +
+                '</li>';
+        });
+
+        html += '</ul>';
+        $container.html(html);
+    }
 
     $(document).on('click', '.campwp-track-audio-select', function(event){
         event.preventDefault();
@@ -195,6 +245,99 @@ final class CoreMetadataMetaBox
             $input.val('0').trigger('change');
         }
     });
+
+    $(document).on('click', '.campwp-bonus-select', function(event){
+        event.preventDefault();
+
+        var targetInputId = $(this).data('target-input');
+        var targetListId = $(this).data('target-list');
+        var $input = $('#' + targetInputId);
+        var $list = $('#' + targetListId);
+
+        if ($input.length === 0 || $list.length === 0 || typeof wp === 'undefined' || typeof wp.media === 'undefined') {
+            return;
+        }
+
+        var frame = wp.media({
+            title: 'Select Bonus Media',
+            button: { text: 'Use selected media' },
+            multiple: true
+        });
+
+        frame.on('select', function(){
+            var selection = frame.state().get('selection').toJSON();
+            var existing = readBonusItems($input);
+            var byKey = {};
+
+            existing.forEach(function(item){
+                byKey[item.type + ':' + item.reference_id] = item;
+            });
+
+            selection.forEach(function(attachment){
+                if (!attachment || !attachment.id) {
+                    return;
+                }
+
+                var item = {
+                    type: 'wp_attachment',
+                    reference_id: parseInt(attachment.id, 10),
+                    label: attachment.title || ''
+                };
+
+                byKey[item.type + ':' + item.reference_id] = item;
+            });
+
+            var nextItems = Object.keys(byKey).map(function(key){
+                return byKey[key];
+            });
+
+            writeBonusItems($input, nextItems);
+            renderBonusList($list, nextItems);
+        });
+
+        frame.open();
+    });
+
+    $(document).on('click', '.campwp-bonus-clear', function(event){
+        event.preventDefault();
+
+        var targetInputId = $(this).data('target-input');
+        var targetListId = $(this).data('target-list');
+        var $input = $('#' + targetInputId);
+        var $list = $('#' + targetListId);
+
+        if ($input.length) {
+            writeBonusItems($input, []);
+        }
+
+        if ($list.length) {
+            renderBonusList($list, []);
+        }
+    });
+
+    $(document).on('click', '.campwp-bonus-remove', function(event){
+        event.preventDefault();
+
+        var $button = $(this);
+        var $container = $button.closest('.campwp-bonus-field');
+        var $input = $container.find('.campwp-bonus-items-input');
+        var $list = $container.find('.campwp-bonus-items-list');
+
+        if ($input.length === 0 || $list.length === 0) {
+            return;
+        }
+
+        var index = parseInt($button.data('index'), 10);
+        var items = readBonusItems($input);
+
+        if (Number.isNaN(index) || index < 0 || index >= items.length) {
+            return;
+        }
+
+        items.splice(index, 1);
+        writeBonusItems($input, items);
+        renderBonusList($list, items);
+    });
 })(jQuery);
 JS;
 
@@ -222,7 +365,10 @@ JS;
         $this->updateMeta($postId, MetadataKeys::ALBUM_LABEL_NAME, $this->sanitizer->sanitizeText((string) ($values['label_name'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_CREDITS_OVERRIDE, $this->sanitizer->sanitizeTextarea((string) ($values['credits_override'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::ALBUM_RELEASE_NOTES, $this->sanitizer->sanitizeTextarea((string) ($values['release_notes'] ?? '')));
-        $this->updateMeta($postId, MetadataKeys::ALBUM_BONUS_ITEMS, '[]');
+
+        $bonusItemsRaw = $values['bonus_items'] ?? '[]';
+        $sanitizedBonusItems = $this->validateBonusItemsBeforeSave($this->sanitizer->sanitizeBonusItems($bonusItemsRaw));
+        $this->updateMeta($postId, MetadataKeys::ALBUM_BONUS_ITEMS, $sanitizedBonusItems);
     }
 
     private function saveTrackMetadata(int $postId): void
@@ -246,7 +392,10 @@ JS;
         $this->updateMeta($postId, MetadataKeys::TRACK_LYRICS, $this->sanitizer->sanitizeTextarea((string) ($values['lyrics'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_ISRC, $this->sanitizer->sanitizeIsrc((string) ($values['isrc'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_ARTWORK_ID, $this->sanitizer->sanitizeAttachmentId((string) ($values['artwork_id'] ?? '0')));
-        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $this->sanitizeTrackAudioAttachmentId((string) ($values['audio_attachment_id'] ?? '0')));
+
+        $audioAttachmentId = $this->sanitizeTrackAudioAttachmentId((string) ($values['audio_attachment_id'] ?? '0'));
+        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $audioAttachmentId);
+        $this->hydrateTrackMetadataFromAudioIfEmpty($postId, $audioAttachmentId);
     }
 
     private function isValidNonce(string $nonceName, string $nonceAction): bool
@@ -349,8 +498,49 @@ JS;
             echo '<strong>' . esc_html__('Current audio', 'campwp') . ':</strong> ';
             echo '<a href="' . esc_url($audioFile->getUrl()) . '" target="_blank" rel="noopener noreferrer">' . esc_html($audioFile->getUrl()) . '</a>';
             echo '<br /><code>' . esc_html($audioFile->getMimeType()) . '</code>';
+            if ($audioFile->getFilePath() !== '') {
+                echo '<br /><code>' . esc_html($audioFile->getFilePath()) . '</code>';
+            }
             echo '</p>';
         }
+    }
+
+    private function renderAlbumBonusAttachmentsField(int $postId): void
+    {
+        $fieldId = 'campwp-album-bonus-items';
+        $listId = 'campwp-album-bonus-items-list';
+        $items = [];
+
+        foreach ($this->bonusAssetResolver->getBonusReferences($postId) as $reference) {
+            $items[] = $reference->toArray();
+        }
+
+        echo '<div class="campwp-bonus-field">';
+        echo '<p><strong>' . esc_html__('Bonus Media Attachments', 'campwp') . '</strong></p>';
+        echo '<input type="hidden" class="campwp-bonus-items-input" id="' . esc_attr($fieldId) . '" name="campwp_album_metadata[bonus_items]" value="' . esc_attr((string) wp_json_encode($items)) . '" />';
+        echo '<p>';
+        echo '<button type="button" class="button campwp-bonus-select" data-target-input="' . esc_attr($fieldId) . '" data-target-list="' . esc_attr($listId) . '">' . esc_html__('Select Bonus Media', 'campwp') . '</button> ';
+        echo '<button type="button" class="button-link-delete campwp-bonus-clear" data-target-input="' . esc_attr($fieldId) . '" data-target-list="' . esc_attr($listId) . '">' . esc_html__('Clear All', 'campwp') . '</button>';
+        echo '</p>';
+
+        echo '<div id="' . esc_attr($listId) . '" class="campwp-bonus-items-list">';
+
+        if ($items === []) {
+            echo '<p><em>' . esc_html__('No bonus media selected.', 'campwp') . '</em></p>';
+        } else {
+            echo '<ul>';
+            foreach ($items as $index => $item) {
+                $label = $item['label'] !== '' ? (string) $item['label'] : sprintf('Attachment #%d', (int) $item['reference_id']);
+                echo '<li><strong>' . esc_html($label) . '</strong> <code>#' . esc_html((string) $item['reference_id']) . '</code> ';
+                echo '<button type="button" class="button-link-delete campwp-bonus-remove" data-index="' . esc_attr((string) $index) . '">' . esc_html__('Remove', 'campwp') . '</button>';
+                echo '</li>';
+            }
+            echo '</ul>';
+        }
+
+        echo '</div>';
+        echo '<p><em>' . esc_html__('Store one or more Media Library references (PDF/image/ZIP/video/etc.) for this release.', 'campwp') . '</em></p>';
+        echo '</div>';
     }
 
     private function renderTextareaField(string $name, string $label, string $value): void
@@ -409,5 +599,91 @@ JS;
         }
 
         return sanitize_key($postType);
+    }
+
+    private function validateBonusItemsBeforeSave(string $value): string
+    {
+        $decoded = json_decode($value, true);
+
+        if (! is_array($decoded)) {
+            return '[]';
+        }
+
+        $validated = [];
+
+        foreach ($decoded as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $type = isset($item['type']) ? sanitize_key((string) $item['type']) : '';
+            $referenceId = isset($item['reference_id']) ? absint($item['reference_id']) : 0;
+            $label = isset($item['label']) ? sanitize_text_field((string) $item['label']) : '';
+
+            if ($type !== 'wp_attachment' || $referenceId <= 0) {
+                continue;
+            }
+
+            if (! $this->mediaProvider->isValidReference($referenceId)) {
+                continue;
+            }
+
+            $validated[$type . ':' . $referenceId] = [
+                'type' => $type,
+                'reference_id' => $referenceId,
+                'label' => $label,
+            ];
+        }
+
+        return (string) wp_json_encode(array_values($validated));
+    }
+
+    private function hydrateTrackMetadataFromAudioIfEmpty(int $postId, int $audioAttachmentId): void
+    {
+        if ($audioAttachmentId <= 0) {
+            return;
+        }
+
+        $audioFile = $this->trackAudioResolver->getTrackAudioFile($postId);
+
+        if (! $audioFile instanceof TrackAudioFile || $audioFile->getFilePath() === '') {
+            return;
+        }
+
+        if (! function_exists('wp_read_audio_metadata')) {
+            return;
+        }
+
+        $metadata = wp_read_audio_metadata($audioFile->getFilePath());
+
+        if (! is_array($metadata)) {
+            return;
+        }
+
+        $currentDuration = trim($this->getMetaValue($postId, MetadataKeys::TRACK_DURATION));
+        if ($currentDuration === '' && isset($metadata['length_formatted']) && is_string($metadata['length_formatted'])) {
+            $this->updateMeta($postId, MetadataKeys::TRACK_DURATION, $this->sanitizer->sanitizeDuration($metadata['length_formatted']));
+        }
+
+        $currentArtist = trim($this->getMetaValue($postId, MetadataKeys::TRACK_ARTIST_DISPLAY));
+        if ($currentArtist === '' && isset($metadata['artist']) && is_string($metadata['artist'])) {
+            $this->updateMeta($postId, MetadataKeys::TRACK_ARTIST_DISPLAY, $this->sanitizer->sanitizeText($metadata['artist']));
+        }
+
+        $post = get_post($postId);
+
+        if (! $post instanceof \WP_Post) {
+            return;
+        }
+
+        $currentTitle = trim((string) $post->post_title);
+        $isTitleEmpty = $currentTitle === '' || strtolower($currentTitle) === 'auto draft';
+
+        if ($isTitleEmpty && isset($metadata['title']) && is_string($metadata['title']) && trim($metadata['title']) !== '') {
+            wp_update_post([
+                'ID' => $postId,
+                'post_title' => $this->sanitizer->sanitizeText($metadata['title']),
+            ]);
+        }
     }
 }

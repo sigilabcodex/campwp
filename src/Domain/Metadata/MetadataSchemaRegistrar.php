@@ -172,6 +172,19 @@ final class MetadataSchemaRegistrar
                 'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
             ]
         );
+
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID,
+            [
+                'type' => 'integer',
+                'single' => true,
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
     }
 
     private function registerTextMeta(string $postType, string $metaKey): void

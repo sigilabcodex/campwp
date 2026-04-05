@@ -27,4 +27,5 @@ final class MetadataKeys
     public const TRACK_LYRICS = '_campwp_track_lyrics';
     public const TRACK_ISRC = '_campwp_track_isrc';
     public const TRACK_ARTWORK_ID = '_campwp_track_artwork_id';
+    public const TRACK_AUDIO_ATTACHMENT_ID = '_campwp_track_audio_attachment_id';
 }

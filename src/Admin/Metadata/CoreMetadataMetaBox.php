@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace CampWP\Admin\Metadata;
 
+use CampWP\Domain\Audio\TrackAudioFile;
+use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Domain\Metadata\MetadataSanitizer;
+use CampWP\Infrastructure\Audio\WordPressMediaAudioStorageProvider;
 
 final class CoreMetadataMetaBox
 {
@@ -17,15 +20,19 @@ final class CoreMetadataMetaBox
 
     private MetadataSanitizer $sanitizer;
 
-    public function __construct(?MetadataSanitizer $sanitizer = null)
+    private TrackAudioResolver $trackAudioResolver;
+
+    public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null)
     {
         $this->sanitizer = $sanitizer ?? new MetadataSanitizer();
+        $this->trackAudioResolver = $trackAudioResolver ?? new TrackAudioResolver(new WordPressMediaAudioStorageProvider());
     }
 
     public function register(): void
     {
         add_action('add_meta_boxes', [$this, 'registerMetaBoxes']);
         add_action('save_post', [$this, 'saveMetadata'], 10, 2);
+        add_action('admin_enqueue_scripts', [$this, 'enqueueTrackAudioFieldAssets']);
     }
 
     public function registerMetaBoxes(): void
@@ -94,6 +101,7 @@ final class CoreMetadataMetaBox
         $lyrics = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_LYRICS);
         $isrc = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_ISRC);
         $artworkId = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_ARTWORK_ID);
+        $audioAttachmentId = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
 
         $this->renderNumberField('campwp_track_metadata[track_number]', __('Track Number', 'campwp'), $trackNumber, true);
         $this->renderTextField('campwp_track_metadata[subtitle]', __('Subtitle', 'campwp'), $subtitle);
@@ -103,6 +111,7 @@ final class CoreMetadataMetaBox
         $this->renderTextareaField('campwp_track_metadata[lyrics]', __('Lyrics', 'campwp'), $lyrics);
         $this->renderTextField('campwp_track_metadata[isrc]', __('ISRC', 'campwp'), $isrc);
         $this->renderNumberField('campwp_track_metadata[artwork_id]', __('Track Artwork Attachment ID', 'campwp'), $artworkId);
+        $this->renderTrackAudioAttachmentField((int) $post->ID, $audioAttachmentId);
         echo '<p><em>' . esc_html__('Optional: store a Media Library attachment ID for track-specific artwork.', 'campwp') . '</em></p>';
     }
 
@@ -127,6 +136,69 @@ final class CoreMetadataMetaBox
         if ($post->post_type === $this->getTrackPostType()) {
             $this->saveTrackMetadata($postId);
         }
+    }
+
+    public function enqueueTrackAudioFieldAssets(string $hookSuffix): void
+    {
+        if (! in_array($hookSuffix, ['post.php', 'post-new.php'], true)) {
+            return;
+        }
+
+        $screen = get_current_screen();
+
+        if (! $screen instanceof \WP_Screen || $screen->post_type !== $this->getTrackPostType()) {
+            return;
+        }
+
+        wp_enqueue_media();
+        wp_enqueue_script('jquery');
+
+        $script = <<<'JS'
+(function($){
+    'use strict';
+
+    $(document).on('click', '.campwp-track-audio-select', function(event){
+        event.preventDefault();
+
+        var targetInputId = $(this).data('target-input');
+        var $input = $('#' + targetInputId);
+
+        if ($input.length === 0 || typeof wp === 'undefined' || typeof wp.media === 'undefined') {
+            return;
+        }
+
+        var frame = wp.media({
+            title: 'Select Track Audio',
+            library: { type: 'audio' },
+            button: { text: 'Use this audio' },
+            multiple: false
+        });
+
+        frame.on('select', function(){
+            var attachment = frame.state().get('selection').first().toJSON();
+
+            if (attachment && attachment.id) {
+                $input.val(attachment.id).trigger('change');
+            }
+        });
+
+        frame.open();
+    });
+
+    $(document).on('click', '.campwp-track-audio-clear', function(event){
+        event.preventDefault();
+
+        var targetInputId = $(this).data('target-input');
+        var $input = $('#' + targetInputId);
+
+        if ($input.length) {
+            $input.val('0').trigger('change');
+        }
+    });
+})(jQuery);
+JS;
+
+        wp_add_inline_script('jquery', $script);
     }
 
     private function saveAlbumMetadata(int $postId): void
@@ -174,6 +246,7 @@ final class CoreMetadataMetaBox
         $this->updateMeta($postId, MetadataKeys::TRACK_LYRICS, $this->sanitizer->sanitizeTextarea((string) ($values['lyrics'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_ISRC, $this->sanitizer->sanitizeIsrc((string) ($values['isrc'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_ARTWORK_ID, $this->sanitizer->sanitizeAttachmentId((string) ($values['artwork_id'] ?? '0')));
+        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $this->sanitizeTrackAudioAttachmentId((string) ($values['audio_attachment_id'] ?? '0')));
     }
 
     private function isValidNonce(string $nonceName, string $nonceAction): bool
@@ -210,6 +283,21 @@ final class CoreMetadataMetaBox
         return (int) get_post_meta($postId, $metaKey, true);
     }
 
+    private function sanitizeTrackAudioAttachmentId(string $value): int
+    {
+        $attachmentId = $this->sanitizer->sanitizeAttachmentId($value);
+
+        if ($attachmentId === 0) {
+            return 0;
+        }
+
+        if (! $this->trackAudioResolver->isValidTrackAudioReference($attachmentId)) {
+            return 0;
+        }
+
+        return $attachmentId;
+    }
+
     private function renderTextField(string $name, string $label, string $value, bool $required = false): void
     {
         echo '<p>';
@@ -238,6 +326,31 @@ final class CoreMetadataMetaBox
         echo '<input type="number" min="0" step="1" class="widefat" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . ($required ? ' required="required"' : '') . ' />';
         echo '</label>';
         echo '</p>';
+    }
+
+    private function renderTrackAudioAttachmentField(int $postId, string $value): void
+    {
+        $fieldId = 'campwp-track-audio-attachment-id';
+        $audioFile = $this->trackAudioResolver->getTrackAudioFile($postId);
+
+        echo '<p>';
+        echo '<label for="' . esc_attr($fieldId) . '">';
+        echo '<strong>' . esc_html__('Track Audio Attachment ID', 'campwp') . '</strong><br />';
+        echo '<input type="number" min="0" step="1" class="regular-text" id="' . esc_attr($fieldId) . '" name="campwp_track_metadata[audio_attachment_id]" value="' . esc_attr($value) . '" />';
+        echo '</label> ';
+        echo '<button type="button" class="button campwp-track-audio-select" data-target-input="' . esc_attr($fieldId) . '">' . esc_html__('Select Audio', 'campwp') . '</button> ';
+        echo '<button type="button" class="button-link-delete campwp-track-audio-clear" data-target-input="' . esc_attr($fieldId) . '">' . esc_html__('Clear', 'campwp') . '</button>';
+        echo '</p>';
+
+        echo '<p><em>' . esc_html__('Choose a Media Library audio item. CAMPWP stores the attachment ID as the canonical reference.', 'campwp') . '</em></p>';
+
+        if ($audioFile instanceof TrackAudioFile) {
+            echo '<p>';
+            echo '<strong>' . esc_html__('Current audio', 'campwp') . ':</strong> ';
+            echo '<a href="' . esc_url($audioFile->getUrl()) . '" target="_blank" rel="noopener noreferrer">' . esc_html($audioFile->getUrl()) . '</a>';
+            echo '<br /><code>' . esc_html($audioFile->getMimeType()) . '</code>';
+            echo '</p>';
+        }
     }
 
     private function renderTextareaField(string $name, string $label, string $value): void

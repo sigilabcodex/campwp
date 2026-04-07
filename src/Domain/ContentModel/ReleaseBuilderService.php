@@ -1,0 +1,197 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CampWP\Domain\ContentModel;
+
+use CampWP\Domain\Audio\TrackAudioResolver;
+use CampWP\Domain\Metadata\MetadataKeys;
+use CampWP\Domain\Metadata\MetadataSanitizer;
+use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
+
+final class ReleaseBuilderService
+{
+    private MetadataSanitizer $sanitizer;
+
+    private TrackAudioResolver $trackAudioResolver;
+
+    public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null)
+    {
+        $this->sanitizer = $sanitizer ?? new MetadataSanitizer();
+        $this->trackAudioResolver = $trackAudioResolver ?? new TrackAudioResolver(new WordPressMediaLibraryProvider());
+    }
+
+    /**
+     * @param list<int> $attachmentIds
+     * @return list<int>
+     */
+    public function ensureTracksForAudioAttachments(int $albumId, array $attachmentIds): array
+    {
+        $trackIds = [];
+
+        foreach ($attachmentIds as $attachmentId) {
+            if (! $this->trackAudioResolver->isValidTrackAudioReference($attachmentId)) {
+                continue;
+            }
+
+            $existingTrackId = $this->findAlbumTrackByAttachment($albumId, $attachmentId);
+
+            if ($existingTrackId === 0) {
+                $existingTrackId = $this->findStandaloneTrackByAttachment($attachmentId);
+            }
+
+            if ($existingTrackId === 0) {
+                $existingTrackId = $this->createTrackFromAttachment($attachmentId);
+            }
+
+            if ($existingTrackId > 0) {
+                $trackIds[] = $existingTrackId;
+            }
+        }
+
+        return array_values(array_unique(array_filter(array_map('absint', $trackIds))));
+    }
+
+    /**
+     * @param array<string, mixed> $fields
+     */
+    public function saveInlineTrackFields(int $trackId, array $fields): void
+    {
+        if (get_post_type($trackId) !== $this->getTrackPostType() || ! current_user_can('edit_post', $trackId)) {
+            return;
+        }
+
+        $title = $this->sanitizer->sanitizeText((string) ($fields['title'] ?? ''));
+        if ($title !== '') {
+            wp_update_post([
+                'ID' => $trackId,
+                'post_title' => $title,
+            ]);
+        }
+
+        $this->updateMeta($trackId, MetadataKeys::TRACK_SUBTITLE, $this->sanitizer->sanitizeText((string) ($fields['subtitle'] ?? '')));
+        $this->updateMeta($trackId, MetadataKeys::TRACK_NUMBER, $this->sanitizer->sanitizePositiveInteger((string) ($fields['track_number'] ?? '0')));
+        $this->updateMeta($trackId, MetadataKeys::TRACK_DURATION, $this->sanitizer->sanitizeDuration((string) ($fields['duration'] ?? '')));
+        $this->updateMeta($trackId, MetadataKeys::TRACK_ARTIST_DISPLAY, $this->sanitizer->sanitizeText((string) ($fields['artist_display_name'] ?? '')));
+        $this->updateMeta($trackId, MetadataKeys::TRACK_CREDITS, $this->sanitizer->sanitizeTextarea((string) ($fields['credits'] ?? '')));
+
+        $audioAttachmentId = $this->sanitizer->sanitizeAttachmentId((string) ($fields['audio_attachment_id'] ?? '0'));
+
+        if ($audioAttachmentId > 0 && $this->trackAudioResolver->isValidTrackAudioReference($audioAttachmentId)) {
+            update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $audioAttachmentId);
+            return;
+        }
+
+        if ($audioAttachmentId === 0) {
+            delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
+        }
+    }
+
+    private function findAlbumTrackByAttachment(int $albumId, int $attachmentId): int
+    {
+        $trackIds = get_posts([
+            'post_type' => $this->getTrackPostType(),
+            'posts_per_page' => 1,
+            'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
+            'fields' => 'ids',
+            'meta_query' => [
+                [
+                    'key' => MetadataKeys::TRACK_ALBUM_ID,
+                    'value' => $albumId,
+                    'compare' => '=',
+                    'type' => 'NUMERIC',
+                ],
+                [
+                    'key' => MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID,
+                    'value' => $attachmentId,
+                    'compare' => '=',
+                    'type' => 'NUMERIC',
+                ],
+            ],
+            'suppress_filters' => false,
+        ]);
+
+        if (! is_array($trackIds) || $trackIds === []) {
+            return 0;
+        }
+
+        return absint($trackIds[0]);
+    }
+
+    private function findStandaloneTrackByAttachment(int $attachmentId): int
+    {
+        $trackIds = get_posts([
+            'post_type' => $this->getTrackPostType(),
+            'posts_per_page' => 1,
+            'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
+            'fields' => 'ids',
+            'meta_query' => [
+                [
+                    'key' => MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID,
+                    'value' => $attachmentId,
+                    'compare' => '=',
+                    'type' => 'NUMERIC',
+                ],
+                [
+                    'key' => MetadataKeys::TRACK_ALBUM_ID,
+                    'compare' => 'NOT EXISTS',
+                ],
+            ],
+            'suppress_filters' => false,
+        ]);
+
+        if (! is_array($trackIds) || $trackIds === []) {
+            return 0;
+        }
+
+        return absint($trackIds[0]);
+    }
+
+    private function createTrackFromAttachment(int $attachmentId): int
+    {
+        $attachment = get_post($attachmentId);
+
+        $title = $attachment instanceof \WP_Post ? sanitize_text_field((string) $attachment->post_title) : '';
+        if ($title === '') {
+            $title = sprintf(__('Track %d', 'campwp'), $attachmentId);
+        }
+
+        $trackId = wp_insert_post([
+            'post_type' => $this->getTrackPostType(),
+            'post_status' => 'draft',
+            'post_title' => $title,
+        ], true);
+
+        if (is_wp_error($trackId)) {
+            return 0;
+        }
+
+        update_post_meta((int) $trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $attachmentId);
+
+        return (int) $trackId;
+    }
+
+    /**
+     * @param int|string $value
+     */
+    private function updateMeta(int $trackId, string $metaKey, $value): void
+    {
+        if ($value === '' || $value === 0) {
+            delete_post_meta($trackId, $metaKey);
+            return;
+        }
+
+        update_post_meta($trackId, $metaKey, $value);
+    }
+
+    private function getTrackPostType(): string
+    {
+        $postType = apply_filters('campwp_track_post_type', 'campwp_track');
+
+        if (! is_string($postType) || $postType === '') {
+            return 'campwp_track';
+        }
+
+        return sanitize_key($postType);
+    }
+}

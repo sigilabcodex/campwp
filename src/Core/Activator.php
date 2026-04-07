@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace CampWP\Core;
 
-use CampWP\Infrastructure\ContentModel\PostTypeRegistrar;
+use CampWP\Domain\ContentModel\PostTypeRegistrar;
 
 final class Activator
 {

@@ -7,6 +7,8 @@ namespace CampWP\Admin\Metadata;
 use CampWP\Domain\Audio\TrackAudioFile;
 use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\Media\AlbumBonusAssetResolver;
+use CampWP\Domain\Commerce\EntitlementService;
+use CampWP\Domain\Commerce\WooIntegrationService;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Domain\Metadata\MetadataSanitizer;
 use CampWP\Domain\Media\MediaStorageProviderInterface;
@@ -28,12 +30,18 @@ final class CoreMetadataMetaBox
 
     private MediaStorageProviderInterface $mediaProvider;
 
+    private EntitlementService $entitlementService;
+
+    private WooIntegrationService $wooIntegration;
+
     public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null, ?AlbumBonusAssetResolver $bonusAssetResolver = null)
     {
         $this->sanitizer = $sanitizer ?? new MetadataSanitizer();
         $this->mediaProvider = new WordPressMediaLibraryProvider();
         $this->trackAudioResolver = $trackAudioResolver ?? new TrackAudioResolver($this->mediaProvider);
         $this->bonusAssetResolver = $bonusAssetResolver ?? new AlbumBonusAssetResolver($this->mediaProvider);
+        $this->wooIntegration = new WooIntegrationService();
+        $this->entitlementService = new EntitlementService($this->wooIntegration);
     }
 
     public function register(): void
@@ -92,6 +100,7 @@ final class CoreMetadataMetaBox
         $this->renderTextareaField('campwp_album_metadata[credits_override]', __('Credits / Liner Notes Override', 'campwp'), $creditsOverride);
         $this->renderTextareaField('campwp_album_metadata[release_notes]', __('Release Notes', 'campwp'), $releaseNotes);
         $this->renderAlbumBonusAttachmentsField((int) $post->ID);
+        $this->renderDownloadSettingsSection((int) $post->ID, true);
 
         echo '<p><em>' . esc_html__('Tracks can remain standalone when no album assignment is set. In v1, each track can belong to at most one album.', 'campwp') . '</em></p>';
     }
@@ -122,6 +131,7 @@ final class CoreMetadataMetaBox
         $this->renderTextField('campwp_track_metadata[isrc]', __('ISRC', 'campwp'), $isrc);
         $this->renderNumberField('campwp_track_metadata[artwork_id]', __('Track Artwork Attachment ID', 'campwp'), $artworkId);
         $this->renderTrackAudioAttachmentField((int) $post->ID, $audioAttachmentId);
+        $this->renderDownloadSettingsSection((int) $post->ID, false);
         echo '<p><em>' . esc_html__('Optional: store a Media Library attachment ID for track-specific artwork.', 'campwp') . '</em></p>';
     }
 
@@ -369,6 +379,18 @@ JS;
         $bonusItemsRaw = $values['bonus_items'] ?? '[]';
         $sanitizedBonusItems = $this->validateBonusItemsBeforeSave($this->sanitizer->sanitizeBonusItems($bonusItemsRaw));
         $this->updateMeta($postId, MetadataKeys::ALBUM_BONUS_ITEMS, $sanitizedBonusItems);
+
+        $downloadEnabled = isset($values['download_enabled']) ? 1 : 0;
+        $downloadMode = sanitize_key((string) ($values['download_mode'] ?? 'public'));
+        $productId = absint($values['product_id'] ?? 0);
+
+        if (! $this->entitlementService->isModeSelectable($downloadMode)) {
+            $downloadMode = EntitlementService::MODE_PUBLIC;
+        }
+
+        $this->updateMeta($postId, MetadataKeys::ALBUM_DOWNLOAD_ENABLED, $downloadEnabled);
+        $this->updateMeta($postId, MetadataKeys::ALBUM_DOWNLOAD_MODE, $downloadMode);
+        $this->updateMeta($postId, MetadataKeys::ALBUM_PRODUCT_ID, $productId);
     }
 
     private function saveTrackMetadata(int $postId): void
@@ -396,6 +418,27 @@ JS;
         $audioAttachmentId = $this->sanitizeTrackAudioAttachmentId((string) ($values['audio_attachment_id'] ?? '0'));
         $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $audioAttachmentId);
         $this->hydrateTrackMetadataFromAudioIfEmpty($postId, $audioAttachmentId);
+
+        $override = isset($values['download_override']) ? 1 : 0;
+
+        if ($override === 0) {
+            delete_post_meta($postId, MetadataKeys::TRACK_DOWNLOAD_ENABLED);
+            delete_post_meta($postId, MetadataKeys::TRACK_DOWNLOAD_MODE);
+            delete_post_meta($postId, MetadataKeys::TRACK_PRODUCT_ID);
+            return;
+        }
+
+        $downloadEnabled = isset($values['download_enabled']) ? 1 : 0;
+        $downloadMode = sanitize_key((string) ($values['download_mode'] ?? 'public'));
+        $productId = absint($values['product_id'] ?? 0);
+
+        if (! $this->entitlementService->isModeSelectable($downloadMode)) {
+            $downloadMode = EntitlementService::MODE_PUBLIC;
+        }
+
+        $this->updateMeta($postId, MetadataKeys::TRACK_DOWNLOAD_ENABLED, $downloadEnabled);
+        $this->updateMeta($postId, MetadataKeys::TRACK_DOWNLOAD_MODE, $downloadMode);
+        $this->updateMeta($postId, MetadataKeys::TRACK_PRODUCT_ID, $productId);
     }
 
     private function isValidNonce(string $nonceName, string $nonceAction): bool
@@ -541,6 +584,68 @@ JS;
         echo '</div>';
         echo '<p><em>' . esc_html__('Store one or more Media Library references (PDF/image/ZIP/video/etc.) for this release.', 'campwp') . '</em></p>';
         echo '</div>';
+    }
+
+
+    private function renderDownloadSettingsSection(int $postId, bool $isAlbum): void
+    {
+        $enabledMetaKey = $isAlbum ? MetadataKeys::ALBUM_DOWNLOAD_ENABLED : MetadataKeys::TRACK_DOWNLOAD_ENABLED;
+        $modeMetaKey = $isAlbum ? MetadataKeys::ALBUM_DOWNLOAD_MODE : MetadataKeys::TRACK_DOWNLOAD_MODE;
+        $productMetaKey = $isAlbum ? MetadataKeys::ALBUM_PRODUCT_ID : MetadataKeys::TRACK_PRODUCT_ID;
+
+        $enabled = in_array((string) get_post_meta($postId, $enabledMetaKey, true), ['1', 'yes', 'on', 'true'], true);
+        $mode = sanitize_key((string) get_post_meta($postId, $modeMetaKey, true));
+        $productId = absint(get_post_meta($postId, $productMetaKey, true));
+
+        if ($mode === '') {
+            $mode = EntitlementService::MODE_PUBLIC;
+        }
+
+        $override = true;
+
+        if (! $isAlbum) {
+            $hasOverrideValue = metadata_exists('post', $postId, MetadataKeys::TRACK_DOWNLOAD_MODE)
+                || metadata_exists('post', $postId, MetadataKeys::TRACK_DOWNLOAD_ENABLED)
+                || metadata_exists('post', $postId, MetadataKeys::TRACK_PRODUCT_ID);
+
+            $override = $hasOverrideValue;
+        }
+
+        echo '<hr />';
+        echo '<h3>' . esc_html__('Download Access', 'campwp') . '</h3>';
+
+        if (! $isAlbum) {
+            echo '<p><label><input type="checkbox" name="campwp_track_metadata[download_override]" value="1"' . checked($override, true, false) . ' /> ' . esc_html__('Override album download settings for this track', 'campwp') . '</label></p>';
+            echo '<p><em>' . esc_html__('Leave unchecked to inherit album-level download mode and product mapping.', 'campwp') . '</em></p>';
+        }
+
+        $baseName = $isAlbum ? 'campwp_album_metadata' : 'campwp_track_metadata';
+
+        echo '<p><label><input type="checkbox" name="' . esc_attr($baseName) . '[download_enabled]" value="1"' . checked($enabled, true, false) . ' /> ' . esc_html__('Enable downloads', 'campwp') . '</label></p>';
+
+        echo '<p><label><strong>' . esc_html__('Download mode', 'campwp') . '</strong><br />';
+        echo '<select class="widefat" name="' . esc_attr($baseName) . '[download_mode]">';
+
+        $modes = [
+            EntitlementService::MODE_PUBLIC => __('Public', 'campwp'),
+            EntitlementService::MODE_RESTRICTED => __('Restricted (logged-in only)', 'campwp'),
+            EntitlementService::MODE_PURCHASE => __('Purchase required', 'campwp'),
+        ];
+
+        foreach ($modes as $value => $label) {
+            $disabled = $value === EntitlementService::MODE_PURCHASE && ! $this->wooIntegration->isAvailable();
+            echo '<option value="' . esc_attr($value) . '"' . selected($mode, $value, false) . disabled($disabled, true, false) . '>' . esc_html($label) . '</option>';
+        }
+
+        echo '</select></label></p>';
+
+        if (! $this->wooIntegration->isAvailable()) {
+            echo '<p><em>' . esc_html__('WooCommerce not detected. Purchase mode is disabled.', 'campwp') . '</em></p>';
+        }
+
+        $productLabel = $isAlbum ? __('WooCommerce Product ID (album)', 'campwp') : __('WooCommerce Product ID (track)', 'campwp');
+        $fieldName = $isAlbum ? 'campwp_album_metadata[product_id]' : 'campwp_track_metadata[product_id]';
+        $this->renderNumberField($fieldName, $productLabel, (string) $productId);
     }
 
     private function renderTextareaField(string $name, string $label, string $value): void

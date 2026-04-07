@@ -96,6 +96,13 @@ final class AlbumPageRenderer
                                 <?php else : ?>
                                     <p><?php esc_html_e('No audio attached for this track.', 'campwp'); ?></p>
                                 <?php endif; ?>
+
+                                <?php if (is_array($track['download']) && ($track['download']['enabled'] ?? false)) : ?>
+                                    <p class="campwp-track-download">
+                                        <a href="<?php echo esc_url((string) $track['download']['url']); ?>"><?php esc_html_e('Download', 'campwp'); ?></a>
+                                        <small><?php echo esc_html((string) $track['download']['mode_label']); ?></small>
+                                    </p>
+                                <?php endif; ?>
                             </li>
                         <?php endforeach; ?>
                     </ol>
@@ -108,14 +115,20 @@ final class AlbumPageRenderer
                     <ul>
                         <?php foreach ($data['bonus_assets'] as $asset) : ?>
                             <?php
-                            $assetLabel = $asset->getReference()->getLabel();
-                            $fallbackLabel = $asset->getAsset()->getTitle();
+                            $assetLabel = (string) ($asset['label'] ?? '');
+                            $fallbackLabel = (string) ($asset['fallback_label'] ?? '');
                             $displayLabel = $assetLabel !== '' ? $assetLabel : $fallbackLabel;
+                            $download = is_array($asset['download'] ?? null) ? $asset['download'] : [];
                             ?>
                             <li>
-                                <a href="<?php echo esc_url($asset->getAsset()->getUrl()); ?>">
+                                <?php if (($download['enabled'] ?? false) === true) : ?>
+                                    <a href="<?php echo esc_url((string) ($download['url'] ?? '')); ?>">
+                                        <?php echo esc_html($displayLabel !== '' ? $displayLabel : __('Bonus file', 'campwp')); ?>
+                                    </a>
+                                    <small><?php echo esc_html((string) ($download['mode_label'] ?? '')); ?></small>
+                                <?php else : ?>
                                     <?php echo esc_html($displayLabel !== '' ? $displayLabel : __('Bonus file', 'campwp')); ?>
-                                </a>
+                                <?php endif; ?>
                             </li>
                         <?php endforeach; ?>
                     </ul>

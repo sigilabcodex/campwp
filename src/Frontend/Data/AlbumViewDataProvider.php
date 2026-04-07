@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace CampWP\Frontend\Data;
 
 use CampWP\Domain\Audio\TrackAudioResolver;
+use CampWP\Domain\Commerce\EntitlementService;
 use CampWP\Domain\ContentModel\AlbumTrackRelationshipService;
 use CampWP\Domain\Media\AlbumBonusAssetResolver;
 use CampWP\Domain\Metadata\MetadataKeys;
+use CampWP\Frontend\Download\DownloadController;
 use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 
 final class AlbumViewDataProvider
@@ -18,6 +20,10 @@ final class AlbumViewDataProvider
 
     private AlbumBonusAssetResolver $bonusAssetResolver;
 
+    private EntitlementService $entitlementService;
+
+    private DownloadController $downloadController;
+
     public function __construct()
     {
         $mediaProvider = new WordPressMediaLibraryProvider();
@@ -25,6 +31,8 @@ final class AlbumViewDataProvider
         $this->relationshipService = new AlbumTrackRelationshipService();
         $this->trackAudioResolver = new TrackAudioResolver($mediaProvider);
         $this->bonusAssetResolver = new AlbumBonusAssetResolver($mediaProvider);
+        $this->entitlementService = new EntitlementService();
+        $this->downloadController = new DownloadController();
     }
 
     /**
@@ -41,6 +49,8 @@ final class AlbumViewDataProvider
         $labelName = $this->getMetaString($album->ID, MetadataKeys::ALBUM_LABEL_NAME);
         $releaseNotes = $this->getMetaString($album->ID, MetadataKeys::ALBUM_RELEASE_NOTES);
 
+        $albumDownloadConfig = $this->entitlementService->getAlbumDownloadConfig($album->ID);
+
         return [
             'id' => $album->ID,
             'title' => get_the_title($album),
@@ -53,7 +63,7 @@ final class AlbumViewDataProvider
             'release_notes' => $releaseNotes,
             'cover_html' => get_the_post_thumbnail($album, 'large'),
             'tracks' => $this->getTrackRows($album->ID, $artist),
-            'bonus_assets' => $this->bonusAssetResolver->resolveBonusAssets($album->ID),
+            'bonus_assets' => $this->getBonusAssetRows($album->ID, $albumDownloadConfig),
         ];
     }
 
@@ -71,6 +81,7 @@ final class AlbumViewDataProvider
             $trackNumberMeta = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_NUMBER, true));
             $trackArtworkId = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_ARTWORK_ID, true));
             $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackPost->ID);
+            $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
 
             $rows[] = [
                 'id' => $trackPost->ID,
@@ -82,6 +93,37 @@ final class AlbumViewDataProvider
                 'duration' => $trackDuration,
                 'artwork_html' => $this->getTrackArtworkHtml($trackPost->ID, $trackArtworkId),
                 'audio' => $audioFile,
+                'download' => [
+                    'enabled' => $downloadConfig['enabled'] && $audioFile !== null,
+                    'mode' => $downloadConfig['mode'],
+                    'mode_label' => $this->entitlementService->modeLabel($downloadConfig['mode']),
+                    'url' => $this->downloadController->getTrackDownloadUrl($trackPost->ID),
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+
+    /**
+     * @param array{enabled: bool, mode: string, product_id: int} $downloadConfig
+     * @return list<array<string, mixed>>
+     */
+    private function getBonusAssetRows(int $albumId, array $downloadConfig): array
+    {
+        $rows = [];
+
+        foreach ($this->bonusAssetResolver->resolveBonusAssets($albumId) as $asset) {
+            $rows[] = [
+                'label' => $asset->getReference()->getLabel(),
+                'fallback_label' => $asset->getAsset()->getTitle(),
+                'download' => [
+                    'enabled' => $downloadConfig['enabled'],
+                    'mode' => $downloadConfig['mode'],
+                    'mode_label' => $this->entitlementService->modeLabel($downloadConfig['mode']),
+                    'url' => $this->downloadController->getAlbumBonusDownloadUrl($albumId, $asset->getAsset()->getReferenceId()),
+                ],
             ];
         }
 

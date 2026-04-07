@@ -25,6 +25,7 @@ final class Application
             new InfrastructureService(),
             new IntegrationService(),
             new FrontendService(),
+            new ImplementationReport(),
         ];
     }
 

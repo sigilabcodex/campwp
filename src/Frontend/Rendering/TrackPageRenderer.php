@@ -24,27 +24,36 @@ final class TrackPageRenderer
         ?>
         <article class="campwp campwp-track" data-campwp-track-id="<?php echo esc_attr((string) $data['id']); ?>">
             <header class="campwp-track-header">
-                <h1 class="campwp-track-title"><?php echo esc_html((string) $data['title']); ?></h1>
-
-                <?php if ($data['subtitle'] !== '') : ?>
-                    <p class="campwp-track-subtitle"><?php echo esc_html((string) $data['subtitle']); ?></p>
+                <?php if ($data['artwork_html'] !== '') : ?>
+                    <figure class="campwp-track-artwork"><?php echo wp_kses_post((string) $data['artwork_html']); ?></figure>
                 <?php endif; ?>
 
-                <?php if ($data['artist_display'] !== '') : ?>
-                    <p class="campwp-track-artist"><strong><?php esc_html_e('Artist', 'campwp'); ?>:</strong> <?php echo esc_html((string) $data['artist_display']); ?></p>
-                <?php endif; ?>
+                <div class="campwp-track-summary">
+                    <h1 class="campwp-track-title"><?php echo esc_html((string) $data['title']); ?></h1>
 
-                <?php if ($data['album'] !== null) : ?>
-                    <p class="campwp-track-album">
-                        <strong><?php esc_html_e('Album', 'campwp'); ?>:</strong>
-                        <a href="<?php echo esc_url((string) $data['album']['permalink']); ?>"><?php echo esc_html((string) $data['album']['title']); ?></a>
-                    </p>
-                <?php endif; ?>
+                    <?php if ($data['subtitle'] !== '') : ?>
+                        <p class="campwp-track-subtitle"><?php echo esc_html((string) $data['subtitle']); ?></p>
+                    <?php endif; ?>
+
+                    <ul class="campwp-track-meta">
+                        <?php if ($data['artist_display'] !== '') : ?>
+                            <li><strong><?php esc_html_e('Artist', 'campwp'); ?>:</strong> <?php echo esc_html((string) $data['artist_display']); ?></li>
+                        <?php endif; ?>
+                        <?php if ($data['duration'] !== '') : ?>
+                            <li><strong><?php esc_html_e('Duration', 'campwp'); ?>:</strong> <?php echo esc_html((string) $data['duration']); ?></li>
+                        <?php endif; ?>
+                        <?php if ($data['isrc'] !== '') : ?>
+                            <li><strong><?php esc_html_e('ISRC', 'campwp'); ?>:</strong> <?php echo esc_html((string) $data['isrc']); ?></li>
+                        <?php endif; ?>
+                        <?php if ($data['album'] !== null) : ?>
+                            <li>
+                                <strong><?php esc_html_e('Release', 'campwp'); ?>:</strong>
+                                <a href="<?php echo esc_url((string) $data['album']['permalink']); ?>"><?php echo esc_html((string) $data['album']['title']); ?></a>
+                            </li>
+                        <?php endif; ?>
+                    </ul>
+                </div>
             </header>
-
-            <?php if ($data['artwork_html'] !== '') : ?>
-                <figure class="campwp-track-artwork"><?php echo wp_kses_post((string) $data['artwork_html']); ?></figure>
-            <?php endif; ?>
 
             <section class="campwp-track-audio">
                 <h2><?php esc_html_e('Playback', 'campwp'); ?></h2>
@@ -53,17 +62,11 @@ final class TrackPageRenderer
                         <source src="<?php echo esc_url($data['audio']->getUrl()); ?>" type="<?php echo esc_attr($data['audio']->getMimeType()); ?>" />
                     </audio>
                 <?php else : ?>
-                    <p><?php esc_html_e('No audio attached to this track.', 'campwp'); ?></p>
+                    <p class="campwp-empty-state"><?php esc_html_e('No audio attached to this track yet.', 'campwp'); ?></p>
                 <?php endif; ?>
             </section>
 
-
-            <?php if (is_array($data['download']) && ($data['download']['enabled'] ?? false)) : ?>
-                <section class="campwp-track-download">
-                    <a class="button" href="<?php echo esc_url((string) $data['download']['url']); ?>"><?php esc_html_e('Download', 'campwp'); ?></a>
-                    <p><em><?php echo esc_html((string) $data['download']['mode_label']); ?></em></p>
-                </section>
-            <?php endif; ?>
+            <?php $this->renderCta((array) $data['cta']); ?>
 
             <?php if ($data['credits'] !== '') : ?>
                 <section class="campwp-track-credits">
@@ -81,7 +84,7 @@ final class TrackPageRenderer
 
             <?php if ($content !== '') : ?>
                 <section class="campwp-track-description">
-                    <h2><?php esc_html_e('Description', 'campwp'); ?></h2>
+                    <h2><?php esc_html_e('Notes', 'campwp'); ?></h2>
                     <?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </section>
             <?php endif; ?>
@@ -89,5 +92,31 @@ final class TrackPageRenderer
         <?php
 
         return (string) ob_get_clean();
+    }
+
+    /**
+     * @param array<string, mixed> $cta
+     */
+    private function renderCta(array $cta): void
+    {
+        $state = (string) ($cta['state'] ?? '');
+        $label = (string) ($cta['label'] ?? '');
+        $message = (string) ($cta['message'] ?? '');
+        $actionLabel = (string) ($cta['action_label'] ?? '');
+        $actionUrl = (string) ($cta['action_url'] ?? '');
+        ?>
+        <section class="campwp-cta" data-campwp-cta-state="<?php echo esc_attr($state); ?>">
+            <h2 class="campwp-cta-title"><?php esc_html_e('Download / purchase', 'campwp'); ?></h2>
+            <?php if ($label !== '') : ?>
+                <p class="campwp-cta-label"><?php echo esc_html($label); ?></p>
+            <?php endif; ?>
+            <?php if ($message !== '') : ?>
+                <p class="campwp-cta-message"><?php echo esc_html($message); ?></p>
+            <?php endif; ?>
+            <?php if ($actionLabel !== '' && $actionUrl !== '') : ?>
+                <p><a class="campwp-cta-button" href="<?php echo esc_url($actionUrl); ?>"><?php echo esc_html($actionLabel); ?></a></p>
+            <?php endif; ?>
+        </section>
+        <?php
     }
 }

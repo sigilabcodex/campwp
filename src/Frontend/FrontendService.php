@@ -26,5 +26,21 @@ final class FrontendService
         );
 
         $contentFilter->register();
+
+        add_action('wp_enqueue_scripts', [$this, 'enqueueAssets']);
+    }
+
+    public function enqueueAssets(): void
+    {
+        if (! is_singular(['campwp_album', 'campwp_track'])) {
+            return;
+        }
+
+        wp_enqueue_style(
+            'campwp-frontend',
+            CAMPWP_URL . 'assets/css/campwp-frontend.css',
+            [],
+            defined('CAMPWP_VERSION') ? CAMPWP_VERSION : '0.1.0'
+        );
     }
 }

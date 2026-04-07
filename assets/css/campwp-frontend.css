@@ -1,0 +1,103 @@
+.campwp {
+  max-width: 1000px;
+}
+
+.campwp-release-hero,
+.campwp-track-header,
+.campwp-track-row,
+.campwp-track-primary {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .campwp-release-hero,
+  .campwp-track-header {
+    grid-template-columns: minmax(220px, 320px) 1fr;
+    align-items: start;
+  }
+}
+
+.campwp-release-cover img,
+.campwp-track-artwork img,
+.campwp-track-artwork .wp-post-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.campwp-release-meta,
+.campwp-track-meta {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.campwp-release-meta li,
+.campwp-track-meta li {
+  margin: 0 0 0.35rem;
+}
+
+.campwp-track-list-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.campwp-track-row {
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 1rem 0;
+}
+
+.campwp-track-heading {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.campwp-track-secondary audio,
+.campwp-track-audio audio {
+  width: 100%;
+}
+
+.campwp-track-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.35rem 0 0;
+}
+
+.campwp-cta {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  padding: 0.75rem;
+  margin: 0.75rem 0 0;
+}
+
+.campwp-cta-title,
+.campwp-cta-label,
+.campwp-cta-message,
+.campwp-bonus-title {
+  margin: 0 0 0.4rem;
+}
+
+.campwp-cta-button {
+  display: inline-block;
+  text-decoration: none;
+  border: 1px solid currentColor;
+  padding: 0.35rem 0.75rem;
+}
+
+.campwp-empty-state {
+  opacity: 0.85;
+}
+
+.campwp-bonus-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.campwp-bonus-row {
+  border-top: 1px dashed rgba(0, 0, 0, 0.15);
+  padding: 0.75rem 0;
+}

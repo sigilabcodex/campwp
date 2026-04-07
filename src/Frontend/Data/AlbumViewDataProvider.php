@@ -10,6 +10,7 @@ use CampWP\Domain\ContentModel\AlbumTrackRelationshipService;
 use CampWP\Domain\Media\AlbumBonusAssetResolver;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Frontend\Download\DownloadController;
+use CampWP\Frontend\Presentation\DownloadCtaPresenter;
 use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 
 final class AlbumViewDataProvider
@@ -24,6 +25,8 @@ final class AlbumViewDataProvider
 
     private DownloadController $downloadController;
 
+    private DownloadCtaPresenter $downloadCtaPresenter;
+
     public function __construct()
     {
         $mediaProvider = new WordPressMediaLibraryProvider();
@@ -33,6 +36,7 @@ final class AlbumViewDataProvider
         $this->bonusAssetResolver = new AlbumBonusAssetResolver($mediaProvider);
         $this->entitlementService = new EntitlementService();
         $this->downloadController = new DownloadController();
+        $this->downloadCtaPresenter = new DownloadCtaPresenter($this->entitlementService);
     }
 
     /**
@@ -48,10 +52,14 @@ final class AlbumViewDataProvider
         );
         $labelName = $this->getMetaString($album->ID, MetadataKeys::ALBUM_LABEL_NAME);
         $releaseNotes = $this->getMetaString($album->ID, MetadataKeys::ALBUM_RELEASE_NOTES);
+        $credits = $this->getMetaString($album->ID, MetadataKeys::ALBUM_CREDITS_OVERRIDE);
 
         $albumDownloadConfig = $this->entitlementService->getAlbumDownloadConfig($album->ID);
+        $bonusAssets = $this->getBonusAssetRows($album->ID, $albumDownloadConfig);
 
-        return [
+        $albumPermalink = get_permalink($album);
+
+        $data = [
             'id' => $album->ID,
             'title' => get_the_title($album),
             'subtitle' => $subtitle,
@@ -61,10 +69,19 @@ final class AlbumViewDataProvider
             'release_type_label' => $this->releaseTypeLabel($releaseType),
             'label_name' => $labelName,
             'release_notes' => $releaseNotes,
+            'credits' => $credits,
             'cover_html' => get_the_post_thumbnail($album, 'large'),
             'tracks' => $this->getTrackRows($album->ID, $artist),
-            'bonus_assets' => $this->getBonusAssetRows($album->ID, $albumDownloadConfig),
+            'bonus_assets' => $bonusAssets,
+            'cta' => $this->downloadCtaPresenter->present(
+                $albumDownloadConfig,
+                '',
+                $bonusAssets !== [],
+                is_string($albumPermalink) ? $albumPermalink : ''
+            ),
         ];
+
+        return apply_filters('campwp_album_view_data', $data, $album);
     }
 
     /**
@@ -75,6 +92,10 @@ final class AlbumViewDataProvider
         $rows = [];
 
         foreach ($this->relationshipService->getTracksForAlbum($albumId) as $index => $trackPost) {
+            if ($trackPost->post_status !== 'publish') {
+                continue;
+            }
+
             $trackSubtitle = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_SUBTITLE);
             $trackArtistOverride = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_ARTIST_DISPLAY);
             $trackDuration = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_DURATION);
@@ -82,23 +103,24 @@ final class AlbumViewDataProvider
             $trackArtworkId = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_ARTWORK_ID, true));
             $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackPost->ID);
             $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
+            $trackPermalink = get_permalink($trackPost);
 
             $rows[] = [
                 'id' => $trackPost->ID,
                 'number' => $trackNumberMeta > 0 ? $trackNumberMeta : $index + 1,
                 'title' => get_the_title($trackPost),
-                'permalink' => get_permalink($trackPost),
+                'permalink' => is_string($trackPermalink) ? $trackPermalink : '',
                 'subtitle' => $trackSubtitle,
                 'artist_display' => $trackArtistOverride !== '' ? $trackArtistOverride : $albumArtist,
                 'duration' => $trackDuration,
                 'artwork_html' => $this->getTrackArtworkHtml($trackPost->ID, $trackArtworkId),
                 'audio' => $audioFile,
-                'download' => [
-                    'enabled' => $downloadConfig['enabled'] && $audioFile !== null,
-                    'mode' => $downloadConfig['mode'],
-                    'mode_label' => $this->entitlementService->modeLabel($downloadConfig['mode']),
-                    'url' => $this->downloadController->getTrackDownloadUrl($trackPost->ID),
-                ],
+                'cta' => $this->downloadCtaPresenter->present(
+                    $downloadConfig,
+                    $this->downloadController->getTrackDownloadUrl($trackPost->ID),
+                    $audioFile !== null,
+                    is_string($trackPermalink) ? $trackPermalink : ''
+                ),
             ];
         }
 
@@ -113,17 +135,18 @@ final class AlbumViewDataProvider
     private function getBonusAssetRows(int $albumId, array $downloadConfig): array
     {
         $rows = [];
+        $albumPermalink = get_permalink($albumId);
 
         foreach ($this->bonusAssetResolver->resolveBonusAssets($albumId) as $asset) {
             $rows[] = [
                 'label' => $asset->getReference()->getLabel(),
                 'fallback_label' => $asset->getAsset()->getTitle(),
-                'download' => [
-                    'enabled' => $downloadConfig['enabled'],
-                    'mode' => $downloadConfig['mode'],
-                    'mode_label' => $this->entitlementService->modeLabel($downloadConfig['mode']),
-                    'url' => $this->downloadController->getAlbumBonusDownloadUrl($albumId, $asset->getAsset()->getReferenceId()),
-                ],
+                'cta' => $this->downloadCtaPresenter->present(
+                    $downloadConfig,
+                    $this->downloadController->getAlbumBonusDownloadUrl($albumId, $asset->getAsset()->getReferenceId()),
+                    true,
+                    is_string($albumPermalink) ? $albumPermalink : ''
+                ),
             ];
         }
 

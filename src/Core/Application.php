@@ -6,6 +6,7 @@ namespace CampWP\Core;
 
 use CampWP\Admin\AdminService;
 use CampWP\Domain\DomainService;
+use CampWP\Frontend\FrontendService;
 use CampWP\Infrastructure\InfrastructureService;
 use CampWP\Integrations\IntegrationService;
 
@@ -23,6 +24,7 @@ final class Application
             new DomainService(),
             new InfrastructureService(),
             new IntegrationService(),
+            new FrontendService(),
         ];
     }
 

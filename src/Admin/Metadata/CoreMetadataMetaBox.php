@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CampWP\Admin\Metadata;
 
+use CampWP\Admin\Settings\DefaultsSettings;
 use CampWP\Domain\Audio\TrackAudioFile;
 use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\Media\AlbumBonusAssetResolver;
@@ -33,8 +34,9 @@ final class CoreMetadataMetaBox
     private EntitlementService $entitlementService;
 
     private WooIntegrationService $wooIntegration;
+    private DefaultsSettings $defaultsSettings;
 
-    public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null, ?AlbumBonusAssetResolver $bonusAssetResolver = null)
+    public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null, ?AlbumBonusAssetResolver $bonusAssetResolver = null, ?DefaultsSettings $defaultsSettings = null)
     {
         $this->sanitizer = $sanitizer ?? new MetadataSanitizer();
         $this->mediaProvider = new WordPressMediaLibraryProvider();
@@ -42,6 +44,7 @@ final class CoreMetadataMetaBox
         $this->bonusAssetResolver = $bonusAssetResolver ?? new AlbumBonusAssetResolver($this->mediaProvider);
         $this->wooIntegration = new WooIntegrationService();
         $this->entitlementService = new EntitlementService($this->wooIntegration);
+        $this->defaultsSettings = $defaultsSettings ?? new DefaultsSettings();
     }
 
     public function register(): void
@@ -78,6 +81,8 @@ final class CoreMetadataMetaBox
     public function renderAlbumMetaBox($post): void
     {
         wp_nonce_field(self::ALBUM_NONCE_ACTION, self::ALBUM_NONCE_NAME);
+        $defaults = $this->defaultsSettings->getDefaults();
+        $isNewPost = $this->isNewPost($post);
 
         $subtitle = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_SUBTITLE);
         $releaseDate = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_RELEASE_DATE);
@@ -88,6 +93,9 @@ final class CoreMetadataMetaBox
         $releaseNotes = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_RELEASE_NOTES);
         $releaseType = $this->getMetaValue((int) $post->ID, MetadataKeys::ALBUM_RELEASE_TYPE);
         $releaseType = $releaseType !== '' ? $releaseType : 'album';
+        $artistDisplayName = ($isNewPost && $artistDisplayName === '') ? (string) ($defaults['artist_display_name'] ?? '') : $artistDisplayName;
+        $labelName = ($isNewPost && $labelName === '') ? (string) ($defaults['label_name'] ?? '') : $labelName;
+        $creditsOverride = ($isNewPost && $creditsOverride === '') ? (string) ($defaults['credits_template'] ?? '') : $creditsOverride;
 
         echo '<p>' . esc_html__('Featured image is used as album cover art.', 'campwp') . '</p>';
 
@@ -111,6 +119,8 @@ final class CoreMetadataMetaBox
     public function renderTrackMetaBox($post): void
     {
         wp_nonce_field(self::TRACK_NONCE_ACTION, self::TRACK_NONCE_NAME);
+        $defaults = $this->defaultsSettings->getDefaults();
+        $isNewPost = $this->isNewPost($post);
 
         $trackNumber = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_NUMBER);
         $subtitle = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_SUBTITLE);
@@ -121,6 +131,8 @@ final class CoreMetadataMetaBox
         $isrc = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_ISRC);
         $artworkId = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_ARTWORK_ID);
         $audioAttachmentId = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
+        $artistDisplayName = ($isNewPost && $artistDisplayName === '') ? (string) ($defaults['artist_display_name'] ?? '') : $artistDisplayName;
+        $credits = ($isNewPost && $credits === '') ? (string) ($defaults['credits_template'] ?? '') : $credits;
 
         $this->renderNumberField('campwp_track_metadata[track_number]', __('Track Number', 'campwp'), $trackNumber, true);
         $this->renderTextField('campwp_track_metadata[subtitle]', __('Subtitle', 'campwp'), $subtitle);
@@ -589,6 +601,7 @@ JS;
 
     private function renderDownloadSettingsSection(int $postId, bool $isAlbum): void
     {
+        $defaults = $this->defaultsSettings->getDefaults();
         $enabledMetaKey = $isAlbum ? MetadataKeys::ALBUM_DOWNLOAD_ENABLED : MetadataKeys::TRACK_DOWNLOAD_ENABLED;
         $modeMetaKey = $isAlbum ? MetadataKeys::ALBUM_DOWNLOAD_MODE : MetadataKeys::TRACK_DOWNLOAD_MODE;
         $productMetaKey = $isAlbum ? MetadataKeys::ALBUM_PRODUCT_ID : MetadataKeys::TRACK_PRODUCT_ID;
@@ -598,7 +611,7 @@ JS;
         $productId = absint(get_post_meta($postId, $productMetaKey, true));
 
         if ($mode === '') {
-            $mode = EntitlementService::MODE_PUBLIC;
+            $mode = sanitize_key((string) ($defaults['download_mode'] ?? EntitlementService::MODE_PUBLIC));
         }
 
         $override = true;
@@ -790,5 +803,13 @@ JS;
                 'post_title' => $this->sanitizer->sanitizeText($metadata['title']),
             ]);
         }
+    }
+
+    /**
+     * @param \WP_Post $post
+     */
+    private function isNewPost($post): bool
+    {
+        return isset($post->post_status) && in_array($post->post_status, ['auto-draft', 'draft'], true) && (int) $post->ID > 0;
     }
 }

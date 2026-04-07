@@ -6,6 +6,7 @@ namespace CampWP\Frontend;
 
 use CampWP\Frontend\Data\AlbumViewDataProvider;
 use CampWP\Frontend\Data\TrackViewDataProvider;
+use CampWP\Frontend\Download\DownloadController;
 use CampWP\Frontend\Rendering\AlbumPageRenderer;
 use CampWP\Frontend\Rendering\SingleContentFilter;
 use CampWP\Frontend\Rendering\TrackPageRenderer;
@@ -16,6 +17,8 @@ final class FrontendService
     {
         $albumDataProvider = new AlbumViewDataProvider();
         $trackDataProvider = new TrackViewDataProvider();
+
+        (new DownloadController())->register();
 
         $contentFilter = new SingleContentFilter(
             new AlbumPageRenderer($albumDataProvider),

@@ -26,6 +26,7 @@ final class MetadataSchemaRegistrar
         $this->registerTrackRelationshipMeta($trackPostType);
         $this->registerAlbumMetadata($albumPostType);
         $this->registerTrackMetadata($trackPostType);
+        $this->registerDownloadMetadata($albumPostType, $trackPostType);
     }
 
     private function registerTrackRelationshipMeta(string $trackPostType): void
@@ -182,6 +183,69 @@ final class MetadataSchemaRegistrar
                 'default' => 0,
                 'show_in_rest' => true,
                 'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+    }
+
+
+    private function registerDownloadMetadata(string $albumPostType, string $trackPostType): void
+    {
+        $this->registerDownloadMetaForPostType($albumPostType, MetadataKeys::ALBUM_DOWNLOAD_ENABLED, 0);
+        $this->registerDownloadModeMeta($albumPostType, MetadataKeys::ALBUM_DOWNLOAD_MODE);
+        $this->registerProductMeta($albumPostType, MetadataKeys::ALBUM_PRODUCT_ID);
+
+        $this->registerDownloadMetaForPostType($trackPostType, MetadataKeys::TRACK_DOWNLOAD_ENABLED, 1);
+        $this->registerDownloadModeMeta($trackPostType, MetadataKeys::TRACK_DOWNLOAD_MODE);
+        $this->registerProductMeta($trackPostType, MetadataKeys::TRACK_PRODUCT_ID);
+    }
+
+    private function registerDownloadMetaForPostType(string $postType, string $metaKey, int $default): void
+    {
+        register_post_meta(
+            $postType,
+            $metaKey,
+            [
+                'type' => 'integer',
+                'single' => true,
+                'default' => $default,
+                'show_in_rest' => true,
+                'sanitize_callback' => static fn ($value): int => in_array((string) $value, ['1', 'yes', 'on', 'true'], true) ? 1 : 0,
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+    }
+
+    private function registerDownloadModeMeta(string $postType, string $metaKey): void
+    {
+        register_post_meta(
+            $postType,
+            $metaKey,
+            [
+                'type' => 'string',
+                'single' => true,
+                'default' => 'public',
+                'show_in_rest' => true,
+                'sanitize_callback' => static function ($value): string {
+                    $mode = sanitize_key((string) $value);
+                    return in_array($mode, ['public', 'restricted', 'purchase'], true) ? $mode : 'public';
+                },
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+    }
+
+    private function registerProductMeta(string $postType, string $metaKey): void
+    {
+        register_post_meta(
+            $postType,
+            $metaKey,
+            [
+                'type' => 'integer',
+                'single' => true,
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => 'absint',
                 'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
             ]
         );

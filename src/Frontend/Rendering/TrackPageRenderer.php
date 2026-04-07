@@ -57,6 +57,14 @@ final class TrackPageRenderer
                 <?php endif; ?>
             </section>
 
+
+            <?php if (is_array($data['download']) && ($data['download']['enabled'] ?? false)) : ?>
+                <section class="campwp-track-download">
+                    <a class="button" href="<?php echo esc_url((string) $data['download']['url']); ?>"><?php esc_html_e('Download', 'campwp'); ?></a>
+                    <p><em><?php echo esc_html((string) $data['download']['mode_label']); ?></em></p>
+                </section>
+            <?php endif; ?>
+
             <?php if ($data['credits'] !== '') : ?>
                 <section class="campwp-track-credits">
                     <h2><?php esc_html_e('Credits', 'campwp'); ?></h2>

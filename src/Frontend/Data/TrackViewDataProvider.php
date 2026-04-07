@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace CampWP\Frontend\Data;
 
 use CampWP\Domain\Audio\TrackAudioResolver;
+use CampWP\Domain\Commerce\EntitlementService;
+use CampWP\Frontend\Download\DownloadController;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 
@@ -12,9 +14,15 @@ final class TrackViewDataProvider
 {
     private TrackAudioResolver $trackAudioResolver;
 
+    private EntitlementService $entitlementService;
+
+    private DownloadController $downloadController;
+
     public function __construct()
     {
         $this->trackAudioResolver = new TrackAudioResolver(new WordPressMediaLibraryProvider());
+        $this->entitlementService = new EntitlementService();
+        $this->downloadController = new DownloadController();
     }
 
     /**
@@ -32,6 +40,9 @@ final class TrackViewDataProvider
             : '';
         $trackArtist = $this->getMetaString($track->ID, MetadataKeys::TRACK_ARTIST_DISPLAY);
 
+        $audio = $this->trackAudioResolver->getTrackAudioFile($track->ID);
+        $downloadConfig = $this->entitlementService->getTrackDownloadConfig($track->ID);
+
         return [
             'id' => $track->ID,
             'title' => get_the_title($track),
@@ -39,7 +50,13 @@ final class TrackViewDataProvider
             'artist_display' => $trackArtist !== '' ? $trackArtist : $albumArtist,
             'credits' => $this->getMetaString($track->ID, MetadataKeys::TRACK_CREDITS),
             'lyrics' => $this->getMetaString($track->ID, MetadataKeys::TRACK_LYRICS),
-            'audio' => $this->trackAudioResolver->getTrackAudioFile($track->ID),
+            'audio' => $audio,
+            'download' => [
+                'enabled' => $downloadConfig['enabled'] && $audio !== null,
+                'mode' => $downloadConfig['mode'],
+                'mode_label' => $this->entitlementService->modeLabel($downloadConfig['mode']),
+                'url' => $this->downloadController->getTrackDownloadUrl($track->ID),
+            ],
             'artwork_html' => $this->getArtworkHtml($track->ID, $artworkId),
             'album' => $album instanceof \WP_Post ? [
                 'id' => $album->ID,

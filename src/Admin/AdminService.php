@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace CampWP\Admin;
 
+use CampWP\Admin\Menu\AdminMenu;
 use CampWP\Admin\Metadata\CoreMetadataMetaBox;
+use CampWP\Admin\Settings\DefaultsSettings;
 use CampWP\Domain\ContentModel\AlbumTrackRelationshipService;
+use CampWP\Domain\ContentModel\PostTypeRegistrar;
 use CampWP\Domain\Metadata\MetadataKeys;
 
 final class AdminService
@@ -14,17 +17,25 @@ final class AdminService
     private const NONCE_NAME = 'campwp_album_tracks_nonce';
 
     private AlbumTrackRelationshipService $albumTrackRelationships;
+    private DefaultsSettings $defaultsSettings;
+    private AdminMenu $adminMenu;
 
     public function __construct(?AlbumTrackRelationshipService $albumTrackRelationships = null)
     {
         $this->albumTrackRelationships = $albumTrackRelationships ?? new AlbumTrackRelationshipService();
+        $this->defaultsSettings = new DefaultsSettings();
+        $this->adminMenu = new AdminMenu($this->defaultsSettings);
     }
 
     public function register(): void
     {
-        (new CoreMetadataMetaBox())->register();
+        (new CoreMetadataMetaBox(null, null, null, $this->defaultsSettings))->register();
+        $this->defaultsSettings->register();
+        $this->adminMenu->register();
 
         add_action('add_meta_boxes', [$this, 'registerAlbumTracksMetaBox']);
+        add_action('add_meta_boxes', [$this, 'cleanupEditingScreens'], 99);
+        add_filter('use_block_editor_for_post_type', [$this, 'disableBlockEditorForCampwpTypes'], 10, 2);
 
         foreach ($this->getAlbumPostTypes() as $albumPostType) {
             add_action('save_post_' . $albumPostType, [$this, 'saveAlbumTracksMetaBox'], 10, 2);
@@ -40,9 +51,31 @@ final class AdminService
                 [$this, 'renderAlbumTracksMetaBox'],
                 $albumPostType,
                 'normal',
-                'default'
+                'high'
             );
         }
+    }
+
+    public function cleanupEditingScreens(): void
+    {
+        $postTypes = [PostTypeRegistrar::ALBUM_POST_TYPE, PostTypeRegistrar::TRACK_POST_TYPE];
+
+        foreach ($postTypes as $postType) {
+            remove_meta_box('slugdiv', $postType, 'normal');
+            remove_meta_box('postcustom', $postType, 'normal');
+            remove_meta_box('authordiv', $postType, 'normal');
+            remove_meta_box('commentstatusdiv', $postType, 'normal');
+            remove_meta_box('commentsdiv', $postType, 'normal');
+        }
+    }
+
+    public function disableBlockEditorForCampwpTypes(bool $useBlockEditor, string $postType): bool
+    {
+        if (in_array($postType, [PostTypeRegistrar::ALBUM_POST_TYPE, PostTypeRegistrar::TRACK_POST_TYPE], true)) {
+            return false;
+        }
+
+        return $useBlockEditor;
     }
 
     /**

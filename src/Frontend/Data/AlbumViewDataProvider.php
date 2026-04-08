@@ -87,45 +87,49 @@ final class AlbumViewDataProvider
      * @return list<array<string, mixed>>
      */
     private function getTrackRows(int $albumId): array
-    {
-        $rows = [];
+/**
+ * @return list<array<string, mixed>>
+ */
+private function getTrackRows(int $albumId): array
+{
+    $rows = [];
+    $defaults = $this->inheritance->getReleaseDefaults($albumId);
 
-        foreach ($this->relationshipService->getTracksForAlbum($albumId) as $index => $trackPost) {
-            if ($trackPost->post_status !== 'publish') {
-                continue;
-            }
-
-            $trackSubtitle = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_SUBTITLE);
-            $trackArtistOverride = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_ARTIST_DISPLAY);
-            $trackDuration = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_DURATION);
-            $trackNumberMeta = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_NUMBER, true));
-            $trackArtworkId = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_ARTWORK_ID, true));
-            $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackPost->ID);
-            $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
-            $trackPermalink = get_permalink($trackPost);
-            $defaults = $this->inheritance->getReleaseDefaults($albumId);
-
-            $rows[] = [
-                'id' => $trackPost->ID,
-                'number' => $trackNumberMeta > 0 ? $trackNumberMeta : $index + 1,
-                'title' => get_the_title($trackPost),
-                'permalink' => is_string($trackPermalink) ? $trackPermalink : '',
-                'subtitle' => $trackSubtitle,
-                'artist_display' => $trackArtistOverride !== '' ? $trackArtistOverride : $defaults['artist_display_name'],
-                'duration' => $trackDuration,
-                'artwork_html' => $this->getTrackArtworkHtml($trackPost->ID, $trackArtworkId),
-                'audio' => $audioFile,
-                'cta' => $this->downloadCtaPresenter->present(
-                    $downloadConfig,
-                    $this->downloadController->getTrackDownloadUrl($trackPost->ID),
-                    $audioFile !== null,
-                    is_string($trackPermalink) ? $trackPermalink : ''
-                ),
-            ];
+    foreach ($this->relationshipService->getTracksForAlbum($albumId) as $index => $trackPost) {
+        if ($trackPost->post_status !== 'publish') {
+            continue;
         }
 
-        return $rows;
+        $trackSubtitle = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_SUBTITLE);
+        $trackArtistOverride = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_ARTIST_DISPLAY);
+        $trackDuration = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_DURATION);
+        $trackNumberMeta = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_NUMBER, true));
+        $trackArtworkId = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_ARTWORK_ID, true));
+        $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackPost->ID);
+        $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
+        $trackPermalink = get_permalink($trackPost);
+
+        $rows[] = [
+            'id' => $trackPost->ID,
+            'number' => $trackNumberMeta > 0 ? $trackNumberMeta : $index + 1,
+            'title' => get_the_title($trackPost),
+            'permalink' => is_string($trackPermalink) ? $trackPermalink : '',
+            'subtitle' => $trackSubtitle,
+            'artist_display' => $trackArtistOverride !== '' ? $trackArtistOverride : $defaults['artist_display_name'],
+            'duration' => $trackDuration,
+            'artwork_html' => $this->getTrackArtworkHtml($trackPost->ID, $trackArtworkId),
+            'audio' => $audioFile,
+            'cta' => $this->downloadCtaPresenter->present(
+                $downloadConfig,
+                $this->downloadController->getTrackDownloadUrl($trackPost->ID),
+                $audioFile !== null,
+                is_string($trackPermalink) ? $trackPermalink : ''
+            ),
+        ];
     }
+
+    return $rows;
+}
 
     /**
      * @param array{enabled: bool, mode: string, product_id: int} $downloadConfig

@@ -98,7 +98,7 @@ final class AdminService
      */
     public function renderAlbumTracksMetaBox($post): void
     {
-        wp_nonce_field(self::NONCE_ACTION, self::NONCE_NAME);
+         wp_nonce_field(self::NONCE_ACTION, self::NONCE_NAME);
 
         $selectedTracks = $this->albumTrackRelationships->getTracksForAlbum((int) $post->ID);
         $trackPosts = $this->albumTrackRelationships->getAssignableTracks();
@@ -135,6 +135,8 @@ final class AdminService
             echo '<tr><td colspan="5"><em>' . esc_html__('No tracks assigned yet. Add audio files above to generate tracks automatically.', 'campwp') . '</em></td></tr>';
         }
 
+        $releaseDefaults = $this->inheritance->getReleaseDefaults((int) $post->ID);
+
         foreach ($selectedTracks as $trackPost) {
             $trackId = (int) $trackPost->ID;
             $orderValue = (int) get_post_meta($trackId, MetadataKeys::TRACK_ORDER, true);
@@ -145,7 +147,6 @@ final class AdminService
             $credits = (string) get_post_meta($trackId, MetadataKeys::TRACK_CREDITS, true);
             $audioAttachmentId = (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, true);
             $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackId);
-            $releaseDefaults = $this->inheritance->getReleaseDefaults((int) $post->ID);
 
             $effectiveArtist = $artistDisplay !== '' ? $artistDisplay : $releaseDefaults['artist_display_name'];
             $summaryParts = array_filter([
@@ -170,13 +171,6 @@ final class AdminService
             echo '<td>';
             echo '<input type="hidden" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][id]" value="' . esc_attr((string) $trackId) . '" />';
             echo '<input type="number" min="1" step="1" class="small-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][order]" value="' . esc_attr((string) max($orderValue, 1)) . '" />';
-            echo '</td>';
-            echo '<td><strong class="campwp-track-title" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html(get_the_title($trackId)) . '</strong></td>';
-            echo '<td><small class="campwp-track-summary" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html(implode(' · ', $summaryParts)) . '</small><br /><small>' . esc_html($classificationLabel) . '</small></td>';
-            echo '<td><button type="button" class="button button-secondary campwp-edit-track" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html__('Edit', 'campwp') . '</button></td>';
-            echo '<td><label><input type="checkbox" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][remove]" value="1" /> ' . esc_html__('Remove', 'campwp') . '</label></td>';
-            echo '</tr>';
-
             echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="title" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][title]" value="' . esc_attr(get_the_title($trackId)) . '" />';
             echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="subtitle" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][subtitle]" value="' . esc_attr($subtitle) . '" />';
             echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="track_number" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][track_number]" value="' . esc_attr((string) $trackNumber) . '" />';
@@ -184,6 +178,12 @@ final class AdminService
             echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="artist_display_name" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][artist_display_name]" value="' . esc_attr($artistDisplay) . '" />';
             echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="credits" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][credits]" value="' . esc_attr($credits) . '" />';
             echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="audio_attachment_id" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][audio_attachment_id]" value="' . esc_attr((string) $audioAttachmentId) . '" />';
+            echo '</td>';
+            echo '<td><strong class="campwp-track-title" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html(get_the_title($trackId)) . '</strong></td>';
+            echo '<td><small class="campwp-track-summary" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html(implode(' · ', $summaryParts)) . '</small><br /><small>' . esc_html($classificationLabel) . '</small></td>';
+            echo '<td><button type="button" class="button button-secondary campwp-edit-track" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html__('Edit', 'campwp') . '</button></td>';
+            echo '<td><label><input type="checkbox" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][remove]" value="1" /> ' . esc_html__('Remove', 'campwp') . '</label></td>';
+            echo '</tr>';
         }
 
         echo '</tbody></table>';

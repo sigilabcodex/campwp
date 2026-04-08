@@ -204,32 +204,28 @@ final class ReleaseBuilderService
     }
 
     private function applyAlbumMetadataSuggestionsIfMissing(int $albumId, int $attachmentId): void
-    {
-        if ($albumId <= 0) {
-            return;
-        }
+{
+    if ($albumId <= 0) {
+        return;
+    }
 
-        $fields = $this->metadataAutofill->getSuggestedTrackFieldsFromAudio($albumId, $attachmentId);
+    $fields = $this->metadataAutofill->getSuggestedTrackFieldsFromAudio($albumId, $attachmentId);
 
-        if ($this->getMetaString($albumId, MetadataKeys::ALBUM_ARTIST_DISPLAY) === '' && (string) ($fields['artist_display_name'] ?? '') !== '') {
-            update_post_meta($albumId, MetadataKeys::ALBUM_ARTIST_DISPLAY, (string) $fields['artist_display_name']);
-        }
+    if ($this->getMetaString($albumId, MetadataKeys::ALBUM_ARTIST_DISPLAY) === '' && (string) ($fields['artist_display_name'] ?? '') !== '') {
+        update_post_meta($albumId, MetadataKeys::ALBUM_ARTIST_DISPLAY, (string) $fields['artist_display_name']);
+    }
 
-        if ($this->getMetaString($albumId, MetadataKeys::ALBUM_SUBTITLE) === '' && (string) ($fields['album'] ?? '') !== '') {
-            update_post_meta($albumId, MetadataKeys::ALBUM_SUBTITLE, (string) $fields['album']);
-        }
-
-        if ($this->getMetaString($albumId, MetadataKeys::ALBUM_RELEASE_DATE) === '' && (string) ($fields['release_year'] ?? '') !== '') {
-            $releaseYear = (string) $fields['release_year'];
-            if (preg_match('/^\d{4}$/', $releaseYear) === 1) {
-                update_post_meta($albumId, MetadataKeys::ALBUM_RELEASE_DATE, $releaseYear . '-01-01');
-            }
-        }
-
-        if ($this->getMetaString($albumId, MetadataKeys::ALBUM_CREDITS_OVERRIDE) === '' && (string) ($fields['credits'] ?? '') !== '') {
-            update_post_meta($albumId, MetadataKeys::ALBUM_CREDITS_OVERRIDE, (string) $fields['credits']);
+    if ($this->getMetaString($albumId, MetadataKeys::ALBUM_RELEASE_DATE) === '' && (string) ($fields['release_year'] ?? '') !== '') {
+        $releaseYear = (string) $fields['release_year'];
+        if (preg_match('/^\d{4}$/', $releaseYear) === 1) {
+            update_post_meta($albumId, MetadataKeys::ALBUM_RELEASE_DATE, $releaseYear . '-01-01');
         }
     }
+
+    if ($this->getMetaString($albumId, MetadataKeys::ALBUM_CREDITS_OVERRIDE) === '' && (string) ($fields['credits'] ?? '') !== '') {
+        update_post_meta($albumId, MetadataKeys::ALBUM_CREDITS_OVERRIDE, (string) $fields['credits']);
+    }
+}
 
     private function syncTrackAudioMeta(int $trackId, int $attachmentId): void
     {

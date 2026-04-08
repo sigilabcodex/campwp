@@ -451,7 +451,7 @@ final class CoreMetadataMetaBox
         var frame = wp.media({
             title: 'Add Audio to Release',
             library: { type: 'audio' },
-            button: { text: 'Use selected audio' },
+            button: { text: 'Add selected audio' },
             multiple: true
         });
 
@@ -482,6 +482,8 @@ final class CoreMetadataMetaBox
             });
             html += '</ul>';
             $preview.html(html);
+
+            $(document).trigger('campwp:release-audio-selected', [{ ids: ids }]);
         });
 
         frame.open();

@@ -6,6 +6,7 @@ namespace CampWP\Frontend\Data;
 
 use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\Commerce\EntitlementService;
+use CampWP\Domain\ContentModel\TrackMetadataInheritanceService;
 use CampWP\Frontend\Download\DownloadController;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Frontend\Presentation\DownloadCtaPresenter;
@@ -14,12 +15,10 @@ use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 final class TrackViewDataProvider
 {
     private TrackAudioResolver $trackAudioResolver;
-
     private EntitlementService $entitlementService;
-
     private DownloadController $downloadController;
-
     private DownloadCtaPresenter $downloadCtaPresenter;
+    private TrackMetadataInheritanceService $inheritance;
 
     public function __construct()
     {
@@ -27,6 +26,7 @@ final class TrackViewDataProvider
         $this->entitlementService = new EntitlementService();
         $this->downloadController = new DownloadController();
         $this->downloadCtaPresenter = new DownloadCtaPresenter($this->entitlementService);
+        $this->inheritance = new TrackMetadataInheritanceService();
     }
 
     /**
@@ -40,10 +40,10 @@ final class TrackViewDataProvider
         $album = $albumId > 0 ? get_post($albumId) : null;
         $albumPermalink = $album instanceof \WP_Post ? get_permalink($album) : '';
         $trackPermalink = get_permalink($track);
-        $albumArtist = $album instanceof \WP_Post
-            ? $this->getMetaString($album->ID, MetadataKeys::ALBUM_ARTIST_DISPLAY)
-            : '';
+
         $trackArtist = $this->getMetaString($track->ID, MetadataKeys::TRACK_ARTIST_DISPLAY);
+        $trackCredits = $this->getMetaString($track->ID, MetadataKeys::TRACK_CREDITS);
+        $defaults = $this->inheritance->getReleaseDefaults($album instanceof \WP_Post ? $album->ID : 0);
 
         $audio = $this->trackAudioResolver->getTrackAudioFile($track->ID);
         $downloadConfig = $this->entitlementService->getTrackDownloadConfig($track->ID);
@@ -52,10 +52,10 @@ final class TrackViewDataProvider
             'id' => $track->ID,
             'title' => get_the_title($track),
             'subtitle' => $this->getMetaString($track->ID, MetadataKeys::TRACK_SUBTITLE),
-            'artist_display' => $trackArtist !== '' ? $trackArtist : $albumArtist,
+            'artist_display' => $trackArtist !== '' ? $trackArtist : $defaults['artist_display_name'],
             'duration' => $this->getMetaString($track->ID, MetadataKeys::TRACK_DURATION),
             'isrc' => $this->getMetaString($track->ID, MetadataKeys::TRACK_ISRC),
-            'credits' => $this->getMetaString($track->ID, MetadataKeys::TRACK_CREDITS),
+            'credits' => $trackCredits !== '' ? $trackCredits : $defaults['credits'],
             'lyrics' => $this->getMetaString($track->ID, MetadataKeys::TRACK_LYRICS),
             'audio' => $audio,
             'cta' => $this->downloadCtaPresenter->present(

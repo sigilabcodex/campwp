@@ -14,6 +14,7 @@ use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\ContentModel\AlbumTrackRelationshipService;
 use CampWP\Domain\ContentModel\PostTypeRegistrar;
 use CampWP\Domain\ContentModel\ReleaseBuilderService;
+use CampWP\Domain\ContentModel\TrackMetadataInheritanceService;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 
@@ -28,6 +29,7 @@ final class AdminService
     private AudioFormatClassifier $audioFormatClassifier;
     private DefaultsSettings $defaultsSettings;
     private AdminMenu $adminMenu;
+    private TrackMetadataInheritanceService $inheritance;
 
     public function __construct(?AlbumTrackRelationshipService $albumTrackRelationships = null)
     {
@@ -37,6 +39,7 @@ final class AdminService
         $this->audioFormatClassifier = new AudioFormatClassifier();
         $this->defaultsSettings = new DefaultsSettings();
         $this->adminMenu = new AdminMenu($this->defaultsSettings);
+        $this->inheritance = new TrackMetadataInheritanceService();
     }
 
     public function register(): void
@@ -118,19 +121,18 @@ final class AdminService
         }
         echo '</select></p>';
 
-        echo '<p>' . esc_html__('Use “Edit Track” to focus metadata updates on one track while keeping release ordering compact.', 'campwp') . '</p>';
+        echo '<p>' . esc_html__('Track list stays compact. Use “Edit” to load one track into the focused panel.', 'campwp') . '</p>';
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
         echo '<th scope="col">' . esc_html__('Order', 'campwp') . '</th>';
-        echo '<th scope="col">' . esc_html__('Title', 'campwp') . '</th>';
-        echo '<th scope="col">' . esc_html__('Track #', 'campwp') . '</th>';
-        echo '<th scope="col">' . esc_html__('Audio', 'campwp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Track', 'campwp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Summary', 'campwp') . '</th>';
         echo '<th scope="col">' . esc_html__('Edit', 'campwp') . '</th>';
         echo '<th scope="col">' . esc_html__('Unassign', 'campwp') . '</th>';
-        echo '</tr></thead><tbody>';
+        echo '</tr></thead><tbody id="campwp-track-list-body">';
 
         if ($selectedTracks === []) {
-            echo '<tr><td colspan="6"><em>' . esc_html__('No tracks assigned yet. Add audio files above to generate tracks automatically.', 'campwp') . '</em></td></tr>';
+            echo '<tr><td colspan="5"><em>' . esc_html__('No tracks assigned yet. Add audio files above to generate tracks automatically.', 'campwp') . '</em></td></tr>';
         }
 
         foreach ($selectedTracks as $trackPost) {
@@ -143,50 +145,67 @@ final class AdminService
             $credits = (string) get_post_meta($trackId, MetadataKeys::TRACK_CREDITS, true);
             $audioAttachmentId = (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, true);
             $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackId);
+            $releaseDefaults = $this->inheritance->getReleaseDefaults((int) $post->ID);
 
-            echo '<tr>';
+            $effectiveArtist = $artistDisplay !== '' ? $artistDisplay : $releaseDefaults['artist_display_name'];
+            $summaryParts = array_filter([
+                $trackNumber > 0 ? '#' . $trackNumber : '',
+                $duration !== '' ? $duration : '',
+                $effectiveArtist !== '' ? $effectiveArtist : '',
+            ]);
+
+            $classificationLabel = __('No source audio linked', 'campwp');
+            if ($audioFile instanceof TrackAudioFile) {
+                $classification = $this->audioFormatClassifier->classifyAttachment($audioFile->getReferenceId());
+                if ($classification['classification'] === AudioFormatClassification::LOSSLESS) {
+                    $classificationLabel = sprintf(__('Audio: %s (preferred source master)', 'campwp'), strtoupper((string) $classification['format']));
+                } elseif ($classification['classification'] === AudioFormatClassification::LOSSY) {
+                    $classificationLabel = sprintf(__('Audio: %s (lossy source)', 'campwp'), strtoupper((string) $classification['format']));
+                } else {
+                    $classificationLabel = __('Audio: unsupported/unknown format', 'campwp');
+                }
+            }
+
+            echo '<tr class="campwp-track-row" data-track-id="' . esc_attr((string) $trackId) . '">';
             echo '<td>';
             echo '<input type="hidden" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][id]" value="' . esc_attr((string) $trackId) . '" />';
             echo '<input type="number" min="1" step="1" class="small-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][order]" value="' . esc_attr((string) max($orderValue, 1)) . '" />';
             echo '</td>';
-            echo '<td>';
-            echo '<input type="text" class="regular-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][title]" value="' . esc_attr(get_the_title($trackId)) . '" />';
-            echo '</td>';
-            echo '<td><input type="number" min="0" step="1" class="small-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][track_number]" value="' . esc_attr((string) $trackNumber) . '" /></td>';
-            echo '<td>';
-            echo '<input type="number" min="0" step="1" class="small-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][audio_attachment_id]" value="' . esc_attr((string) $audioAttachmentId) . '" />';
-            if ($audioFile instanceof TrackAudioFile) {
-                $classification = $this->audioFormatClassifier->classifyAttachment($audioFile->getReferenceId());
-                echo '<br /><a href="' . esc_url($audioFile->getUrl()) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View audio', 'campwp') . '</a>';
-                echo '<br /><small>' . esc_html(strtoupper((string) $classification['format'])) . ' — ';
-                if ($classification['classification'] === AudioFormatClassification::LOSSLESS) {
-                    echo esc_html__('preferred lossless source master', 'campwp');
-                } elseif ($classification['classification'] === AudioFormatClassification::LOSSY) {
-                    echo esc_html__('lossy-only source (lossless preferred; no true hi-fi derivative)', 'campwp');
-                } else {
-                    echo esc_html__('unsupported/unknown format', 'campwp');
-                }
-                echo '</small>';
-            }
-            echo '</td>';
-            echo '<td><button type="button" class="button button-secondary campwp-toggle-track-editor" data-target="campwp-track-editor-' . esc_attr((string) $trackId) . '">' . esc_html__('Edit Track', 'campwp') . '</button></td>';
+            echo '<td><strong class="campwp-track-title" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html(get_the_title($trackId)) . '</strong></td>';
+            echo '<td><small class="campwp-track-summary" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html(implode(' · ', $summaryParts)) . '</small><br /><small>' . esc_html($classificationLabel) . '</small></td>';
+            echo '<td><button type="button" class="button button-secondary campwp-edit-track" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html__('Edit', 'campwp') . '</button></td>';
             echo '<td><label><input type="checkbox" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][remove]" value="1" /> ' . esc_html__('Remove', 'campwp') . '</label></td>';
             echo '</tr>';
 
-            echo '<tr id="campwp-track-editor-' . esc_attr((string) $trackId) . '" class="campwp-track-editor-row" style="display:none;">';
-            echo '<td colspan="6">';
-            echo '<div style="display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 12px;">';
-            echo '<p><label><strong>' . esc_html__('Subtitle', 'campwp') . '</strong><br /><input type="text" class="regular-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][subtitle]" value="' . esc_attr($subtitle) . '" /></label></p>';
-            echo '<p><label><strong>' . esc_html__('Duration', 'campwp') . '</strong><br /><input type="text" class="small-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][duration]" value="' . esc_attr($duration) . '" /></label></p>';
-            echo '<p><label><strong>' . esc_html__('Artist Override', 'campwp') . '</strong><br /><input type="text" class="regular-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][artist_display_name]" value="' . esc_attr($artistDisplay) . '" /></label></p>';
-            echo '<p><label><strong>' . esc_html__('Credits', 'campwp') . '</strong><br /><textarea rows="3" class="large-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][credits]">' . esc_textarea($credits) . '</textarea></label></p>';
-            echo '</div>';
-            echo '</td>';
-            echo '</tr>';
+            echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="title" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][title]" value="' . esc_attr(get_the_title($trackId)) . '" />';
+            echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="subtitle" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][subtitle]" value="' . esc_attr($subtitle) . '" />';
+            echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="track_number" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][track_number]" value="' . esc_attr((string) $trackNumber) . '" />';
+            echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="duration" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][duration]" value="' . esc_attr($duration) . '" />';
+            echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="artist_display_name" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][artist_display_name]" value="' . esc_attr($artistDisplay) . '" />';
+            echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="credits" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][credits]" value="' . esc_attr($credits) . '" />';
+            echo '<input type="hidden" class="campwp-track-field" data-track-id="' . esc_attr((string) $trackId) . '" data-field="audio_attachment_id" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][audio_attachment_id]" value="' . esc_attr((string) $audioAttachmentId) . '" />';
         }
 
         echo '</tbody></table>';
-        $this->renderTrackEditorScript();
+
+        echo '<div id="campwp-release-track-editor" style="margin-top:16px;padding:12px;border:1px solid #ccd0d4;background:#fff;">';
+        echo '<h3 style="margin-top:0;" id="campwp-release-track-editor-heading">' . esc_html__('Track Editor', 'campwp') . '</h3>';
+        echo '<p class="description" id="campwp-release-track-editor-help">' . esc_html__('Select a track from the list above to edit its metadata.', 'campwp') . '</p>';
+        echo '<div id="campwp-release-track-editor-fields" style="display:none;">';
+        echo '<div style="display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 12px;">';
+        echo '<p><label><strong>' . esc_html__('Title', 'campwp') . '</strong><br /><input type="text" class="regular-text" data-editor-field="title" /></label></p>';
+        echo '<p><label><strong>' . esc_html__('Track #', 'campwp') . '</strong><br /><input type="number" min="0" step="1" class="small-text" data-editor-field="track_number" /></label></p>';
+        echo '<p><label><strong>' . esc_html__('Subtitle', 'campwp') . '</strong><br /><input type="text" class="regular-text" data-editor-field="subtitle" /></label></p>';
+        echo '<p><label><strong>' . esc_html__('Duration', 'campwp') . '</strong><br /><input type="text" class="small-text" data-editor-field="duration" /></label></p>';
+        echo '<p><label><strong>' . esc_html__('Artist Override', 'campwp') . '</strong><br /><input type="text" class="regular-text" data-editor-field="artist_display_name" /></label></p>';
+        echo '<p><label><strong>' . esc_html__('Audio Attachment ID', 'campwp') . '</strong><br /><input type="number" min="0" step="1" class="small-text" data-editor-field="audio_attachment_id" /></label></p>';
+        echo '<p style="grid-column:1 / -1;"><label><strong>' . esc_html__('Credits', 'campwp') . '</strong><br /><textarea rows="3" class="large-text" data-editor-field="credits"></textarea></label></p>';
+        echo '</div>';
+        echo '<p class="description" id="campwp-release-track-editor-effective"></p>';
+        echo '</div>';
+        echo '</div>';
+
+        $this->renderTrackEditorScript((int) $post->ID);
     }
 
     /**
@@ -278,24 +297,105 @@ final class AdminService
         return array_values(array_unique(array_filter(array_map('sanitize_key', $postTypes))));
     }
 
-    private function renderTrackEditorScript(): void
+    private function renderTrackEditorScript(int $albumId): void
     {
+        $defaults = $this->inheritance->getReleaseDefaults($albumId);
+        $defaultArtist = esc_js((string) $defaults['artist_display_name']);
+        $defaultCredits = esc_js((string) $defaults['credits']);
+
         $script = <<<JS
         jQuery(function($) {
-            var buttons = $('.campwp-toggle-track-editor');
-            buttons.on('click', function() {
-                var targetId = $(this).attr('data-target');
-                var target = $('#' + targetId);
-                if (target.length === 0) {
+            var activeTrackId = null;
+
+            function hiddenField(trackId, fieldName) {
+                return $('.campwp-track-field[data-track-id="' + trackId + '"][data-field="' + fieldName + '"]');
+            }
+
+            function editorField(fieldName) {
+                return $('[data-editor-field="' + fieldName + '"]');
+            }
+
+            function summarize(trackId) {
+                var number = hiddenField(trackId, 'track_number').val() || '';
+                var duration = hiddenField(trackId, 'duration').val() || '';
+                var artist = hiddenField(trackId, 'artist_display_name').val() || '';
+                if (!artist) {
+                    artist = '{$defaultArtist}';
+                }
+
+                var parts = [];
+                if (number) {
+                    parts.push('#' + number);
+                }
+                if (duration) {
+                    parts.push(duration);
+                }
+                if (artist) {
+                    parts.push(artist);
+                }
+
+                $('.campwp-track-summary[data-track-id="' + trackId + '"]').text(parts.join(' · '));
+            }
+
+            function syncEditorToHidden() {
+                if (!activeTrackId) {
                     return;
                 }
 
-                $('.campwp-track-editor-row').not(target).hide();
-                target.toggle();
+                $('[data-editor-field]').each(function() {
+                    var fieldName = $(this).data('editor-field');
+                    hiddenField(activeTrackId, fieldName).val($(this).val());
+                });
+
+                $('.campwp-track-title[data-track-id="' + activeTrackId + '"]').text(editorField('title').val() || '(untitled)');
+                summarize(activeTrackId);
+
+                var effectiveArtist = editorField('artist_display_name').val() || '{$defaultArtist}';
+                var effectiveCredits = editorField('credits').val() || '{$defaultCredits}';
+                var description = '';
+
+                if (effectiveArtist) {
+                    description += 'Effective artist: ' + effectiveArtist + '. ';
+                }
+
+                if (effectiveCredits) {
+                    description += 'Credits inherit from release when empty.';
+                }
+
+                $('#campwp-release-track-editor-effective').text(description);
+            }
+
+            function loadTrack(trackId) {
+                activeTrackId = trackId;
+                $('#campwp-release-track-editor-fields').show();
+
+                $('[data-editor-field]').each(function() {
+                    var fieldName = $(this).data('editor-field');
+                    $(this).val(hiddenField(trackId, fieldName).val() || '');
+                });
+
+                var heading = $('.campwp-track-title[data-track-id="' + trackId + '"]').first().text();
+                $('#campwp-release-track-editor-heading').text('Track Editor: ' + heading + ' (#' + trackId + ')');
+                $('#campwp-release-track-editor-help').text('Editing one track at a time keeps large releases manageable.');
+
+                $('.campwp-track-row').removeClass('campwp-track-row--active');
+                $('.campwp-track-row[data-track-id="' + trackId + '"]').addClass('campwp-track-row--active');
+
+                syncEditorToHidden();
+            }
+
+            $(document).on('click', '.campwp-edit-track', function() {
+                loadTrack($(this).data('track-id').toString());
             });
+
+            $(document).on('input change', '[data-editor-field]', syncEditorToHidden);
+
+            var firstTrack = $('.campwp-edit-track').first();
+            if (firstTrack.length) {
+                loadTrack(firstTrack.data('track-id').toString());
+            }
         });
 JS;
         wp_add_inline_script('jquery', $script);
     }
-
 }

@@ -7,6 +7,7 @@ namespace CampWP\Frontend\Data;
 use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\Commerce\EntitlementService;
 use CampWP\Domain\ContentModel\AlbumTrackRelationshipService;
+use CampWP\Domain\ContentModel\TrackMetadataInheritanceService;
 use CampWP\Domain\Media\AlbumBonusAssetResolver;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Frontend\Download\DownloadController;
@@ -16,16 +17,12 @@ use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 final class AlbumViewDataProvider
 {
     private AlbumTrackRelationshipService $relationshipService;
-
     private TrackAudioResolver $trackAudioResolver;
-
     private AlbumBonusAssetResolver $bonusAssetResolver;
-
     private EntitlementService $entitlementService;
-
     private DownloadController $downloadController;
-
     private DownloadCtaPresenter $downloadCtaPresenter;
+    private TrackMetadataInheritanceService $inheritance;
 
     public function __construct()
     {
@@ -37,6 +34,7 @@ final class AlbumViewDataProvider
         $this->entitlementService = new EntitlementService();
         $this->downloadController = new DownloadController();
         $this->downloadCtaPresenter = new DownloadCtaPresenter($this->entitlementService);
+        $this->inheritance = new TrackMetadataInheritanceService();
     }
 
     /**
@@ -44,6 +42,7 @@ final class AlbumViewDataProvider
      */
     public function getAlbumViewData(\WP_Post $album): array
     {
+        $releaseDefaults = $this->inheritance->getReleaseDefaults($album->ID);
         $subtitle = $this->getMetaString($album->ID, MetadataKeys::ALBUM_SUBTITLE);
         $artist = $this->getMetaString($album->ID, MetadataKeys::ALBUM_ARTIST_DISPLAY);
         $releaseDate = $this->getMetaString($album->ID, MetadataKeys::ALBUM_RELEASE_DATE);
@@ -63,15 +62,15 @@ final class AlbumViewDataProvider
             'id' => $album->ID,
             'title' => get_the_title($album),
             'subtitle' => $subtitle,
-            'artist_display' => $artist,
+            'artist_display' => $artist !== '' ? $artist : $releaseDefaults['artist_display_name'],
             'release_date' => $releaseDate,
             'release_type' => $releaseType,
             'release_type_label' => $this->releaseTypeLabel($releaseType),
-            'label_name' => $labelName,
+            'label_name' => $labelName !== '' ? $labelName : $releaseDefaults['label_name'],
             'release_notes' => $releaseNotes,
-            'credits' => $credits,
+            'credits' => $credits !== '' ? $credits : $releaseDefaults['credits'],
             'cover_html' => get_the_post_thumbnail($album, 'large'),
-            'tracks' => $this->getTrackRows($album->ID, $artist),
+            'tracks' => $this->getTrackRows($album->ID),
             'bonus_assets' => $bonusAssets,
             'cta' => $this->downloadCtaPresenter->present(
                 $albumDownloadConfig,
@@ -87,7 +86,7 @@ final class AlbumViewDataProvider
     /**
      * @return list<array<string, mixed>>
      */
-    private function getTrackRows(int $albumId, string $albumArtist): array
+    private function getTrackRows(int $albumId): array
     {
         $rows = [];
 
@@ -104,6 +103,7 @@ final class AlbumViewDataProvider
             $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackPost->ID);
             $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
             $trackPermalink = get_permalink($trackPost);
+            $defaults = $this->inheritance->getReleaseDefaults($albumId);
 
             $rows[] = [
                 'id' => $trackPost->ID,
@@ -111,7 +111,7 @@ final class AlbumViewDataProvider
                 'title' => get_the_title($trackPost),
                 'permalink' => is_string($trackPermalink) ? $trackPermalink : '',
                 'subtitle' => $trackSubtitle,
-                'artist_display' => $trackArtistOverride !== '' ? $trackArtistOverride : $albumArtist,
+                'artist_display' => $trackArtistOverride !== '' ? $trackArtistOverride : $defaults['artist_display_name'],
                 'duration' => $trackDuration,
                 'artwork_html' => $this->getTrackArtworkHtml($trackPost->ID, $trackArtworkId),
                 'audio' => $audioFile,
@@ -126,7 +126,6 @@ final class AlbumViewDataProvider
 
         return $rows;
     }
-
 
     /**
      * @param array{enabled: bool, mode: string, product_id: int} $downloadConfig

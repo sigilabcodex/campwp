@@ -10,6 +10,8 @@ final class DownloadController
 {
     public const QUERY_TYPE = 'campwp_download_type';
     public const QUERY_ID = 'campwp_download_id';
+    private const REWRITE_VERSION = '1';
+    private const REWRITE_VERSION_OPTION = 'campwp_download_rewrite_version';
 
     private DownloadResolver $resolver;
 
@@ -21,13 +23,30 @@ final class DownloadController
     public function register(): void
     {
         add_action('init', [$this, 'registerRewriteRules']);
+        add_action('init', [$this, 'maybeFlushRewriteRules'], 20);
         add_filter('query_vars', [$this, 'registerQueryVars']);
         add_action('template_redirect', [$this, 'handleRequest']);
     }
 
     public function registerRewriteRules(): void
     {
+        self::registerRouteRewriteRules();
+    }
+
+    public static function registerRouteRewriteRules(): void
+    {
         add_rewrite_rule('^campwp-download/(track|album-bonus)/([0-9]+)/?$', 'index.php?' . self::QUERY_TYPE . '=$matches[1]&' . self::QUERY_ID . '=$matches[2]', 'top');
+    }
+
+    public function maybeFlushRewriteRules(): void
+    {
+        if (get_option(self::REWRITE_VERSION_OPTION) === self::REWRITE_VERSION) {
+            return;
+        }
+
+        self::registerRouteRewriteRules();
+        flush_rewrite_rules(false);
+        update_option(self::REWRITE_VERSION_OPTION, self::REWRITE_VERSION, false);
     }
 
     /**
@@ -73,11 +92,23 @@ final class DownloadController
 
     public function getTrackDownloadUrl(int $trackId): string
     {
-        return home_url('/campwp-download/track/' . $trackId);
+        return $this->buildDownloadUrl('track', $trackId);
     }
 
     public function getAlbumBonusDownloadUrl(int $albumId, int $referenceId): string
     {
-        return add_query_arg('ref', (string) $referenceId, home_url('/campwp-download/album-bonus/' . $albumId));
+        return add_query_arg('ref', (string) $referenceId, $this->buildDownloadUrl('album-bonus', $albumId));
+    }
+
+    private function buildDownloadUrl(string $type, int $entityId): string
+    {
+        if (get_option('permalink_structure')) {
+            return home_url('/campwp-download/' . $type . '/' . $entityId . '/');
+        }
+
+        return add_query_arg([
+            self::QUERY_TYPE => $type,
+            self::QUERY_ID => (string) $entityId,
+        ], home_url('/'));
     }
 }

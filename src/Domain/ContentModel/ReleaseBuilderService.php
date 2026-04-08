@@ -49,6 +49,7 @@ final class ReleaseBuilderService
             }
 
             if ($existingTrackId > 0) {
+                $this->applyAlbumMetadataSuggestionsIfMissing($albumId, $attachmentId);
                 $trackIds[] = $existingTrackId;
             }
         }
@@ -91,9 +92,6 @@ final class ReleaseBuilderService
             delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID);
             delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION);
         }
-
-        $albumId = absint(get_post_meta($trackId, MetadataKeys::TRACK_ALBUM_ID, true));
-        $this->applyDefaultMetadataIfMissing($trackId, $albumId);
     }
 
     private function findAlbumTrackByAttachment(int $albumId, int $attachmentId): int
@@ -158,9 +156,14 @@ final class ReleaseBuilderService
 
     private function createTrackFromAttachment(int $albumId, int $attachmentId): int
     {
-        $attachment = get_post($attachmentId);
+        $suggested = $this->metadataAutofill->getSuggestedTrackFieldsFromAudio($albumId, $attachmentId);
+        $title = (string) ($suggested['title'] ?? '');
 
-        $title = $attachment instanceof \WP_Post ? sanitize_text_field((string) $attachment->post_title) : '';
+        if ($title === '') {
+            $attachment = get_post($attachmentId);
+            $title = $attachment instanceof \WP_Post ? sanitize_text_field((string) $attachment->post_title) : '';
+        }
+
         if ($title === '') {
             $title = sprintf(__('Track %d', 'campwp'), $attachmentId);
         }
@@ -200,15 +203,32 @@ final class ReleaseBuilderService
         $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_CREDITS, (string) ($fields['credits'] ?? ''));
     }
 
-    private function applyDefaultMetadataIfMissing(int $trackId, int $albumId): void
+    private function applyAlbumMetadataSuggestionsIfMissing(int $albumId, int $attachmentId): void
     {
-        $fields = $this->metadataAutofill->applyTrackDefaults([], $albumId, $trackId);
+        if ($albumId <= 0) {
+            return;
+        }
 
-        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_SUBTITLE, (string) ($fields['subtitle'] ?? ''));
-        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_ARTIST_DISPLAY, (string) ($fields['artist_display_name'] ?? ''));
-        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_NUMBER, (int) ($fields['track_number'] ?? 0));
-        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_DURATION, (string) ($fields['duration'] ?? ''));
-        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_CREDITS, (string) ($fields['credits'] ?? ''));
+        $fields = $this->metadataAutofill->getSuggestedTrackFieldsFromAudio($albumId, $attachmentId);
+
+        if ($this->getMetaString($albumId, MetadataKeys::ALBUM_ARTIST_DISPLAY) === '' && (string) ($fields['artist_display_name'] ?? '') !== '') {
+            update_post_meta($albumId, MetadataKeys::ALBUM_ARTIST_DISPLAY, (string) $fields['artist_display_name']);
+        }
+
+        if ($this->getMetaString($albumId, MetadataKeys::ALBUM_SUBTITLE) === '' && (string) ($fields['album'] ?? '') !== '') {
+            update_post_meta($albumId, MetadataKeys::ALBUM_SUBTITLE, (string) $fields['album']);
+        }
+
+        if ($this->getMetaString($albumId, MetadataKeys::ALBUM_RELEASE_DATE) === '' && (string) ($fields['release_year'] ?? '') !== '') {
+            $releaseYear = (string) $fields['release_year'];
+            if (preg_match('/^\d{4}$/', $releaseYear) === 1) {
+                update_post_meta($albumId, MetadataKeys::ALBUM_RELEASE_DATE, $releaseYear . '-01-01');
+            }
+        }
+
+        if ($this->getMetaString($albumId, MetadataKeys::ALBUM_CREDITS_OVERRIDE) === '' && (string) ($fields['credits'] ?? '') !== '') {
+            update_post_meta($albumId, MetadataKeys::ALBUM_CREDITS_OVERRIDE, (string) $fields['credits']);
+        }
     }
 
     private function syncTrackAudioMeta(int $trackId, int $attachmentId): void
@@ -248,6 +268,13 @@ final class ReleaseBuilderService
         }
 
         update_post_meta($trackId, $metaKey, $value);
+    }
+
+    private function getMetaString(int $postId, string $metaKey): string
+    {
+        $value = get_post_meta($postId, $metaKey, true);
+
+        return is_string($value) ? $value : '';
     }
 
     private function getTrackPostType(): string

@@ -19,6 +19,12 @@ final class TrackAudioResolver
 
     public function getTrackAudioReferenceId(int $trackId): int
     {
+        $sourceId = max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, true));
+
+        if ($sourceId > 0) {
+            return $sourceId;
+        }
+
         return max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, true));
     }
 

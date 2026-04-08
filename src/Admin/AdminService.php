@@ -7,6 +7,8 @@ namespace CampWP\Admin;
 use CampWP\Admin\Menu\AdminMenu;
 use CampWP\Admin\Metadata\CoreMetadataMetaBox;
 use CampWP\Admin\Settings\DefaultsSettings;
+use CampWP\Domain\Audio\AudioFormatClassification;
+use CampWP\Domain\Audio\AudioFormatClassifier;
 use CampWP\Domain\Audio\TrackAudioFile;
 use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\ContentModel\AlbumTrackRelationshipService;
@@ -23,6 +25,7 @@ final class AdminService
     private AlbumTrackRelationshipService $albumTrackRelationships;
     private ReleaseBuilderService $releaseBuilder;
     private TrackAudioResolver $trackAudioResolver;
+    private AudioFormatClassifier $audioFormatClassifier;
     private DefaultsSettings $defaultsSettings;
     private AdminMenu $adminMenu;
 
@@ -31,6 +34,7 @@ final class AdminService
         $this->albumTrackRelationships = $albumTrackRelationships ?? new AlbumTrackRelationshipService();
         $this->releaseBuilder = new ReleaseBuilderService();
         $this->trackAudioResolver = new TrackAudioResolver(new WordPressMediaLibraryProvider());
+        $this->audioFormatClassifier = new AudioFormatClassifier();
         $this->defaultsSettings = new DefaultsSettings();
         $this->adminMenu = new AdminMenu($this->defaultsSettings);
     }
@@ -158,7 +162,17 @@ final class AdminService
             echo '<td>';
             echo '<input type="number" min="0" step="1" class="small-text" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][audio_attachment_id]" value="' . esc_attr((string) $audioAttachmentId) . '" />';
             if ($audioFile instanceof TrackAudioFile) {
+                $classification = $this->audioFormatClassifier->classifyAttachment($audioFile->getReferenceId());
                 echo '<br /><a href="' . esc_url($audioFile->getUrl()) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View audio', 'campwp') . '</a>';
+                echo '<br /><small>' . esc_html(strtoupper((string) $classification['format'])) . ' — ';
+                if ($classification['classification'] === AudioFormatClassification::LOSSLESS) {
+                    echo esc_html__('preferred lossless source master', 'campwp');
+                } elseif ($classification['classification'] === AudioFormatClassification::LOSSY) {
+                    echo esc_html__('lossy-only source (lossless preferred; no true hi-fi derivative)', 'campwp');
+                } else {
+                    echo esc_html__('unsupported/unknown format', 'campwp');
+                }
+                echo '</small>';
             }
             echo '</td>';
             echo '<td><label><input type="checkbox" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][remove]" value="1" /> ' . esc_html__('Remove', 'campwp') . '</label></td>';

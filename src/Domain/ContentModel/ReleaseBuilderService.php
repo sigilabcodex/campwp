@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CampWP\Domain\ContentModel;
 
+use CampWP\Domain\Audio\AudioFormatClassifier;
 use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Domain\Metadata\MetadataSanitizer;
@@ -14,11 +15,13 @@ final class ReleaseBuilderService
     private MetadataSanitizer $sanitizer;
 
     private TrackAudioResolver $trackAudioResolver;
+    private AudioFormatClassifier $audioFormatClassifier;
 
     public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null)
     {
         $this->sanitizer = $sanitizer ?? new MetadataSanitizer();
         $this->trackAudioResolver = $trackAudioResolver ?? new TrackAudioResolver(new WordPressMediaLibraryProvider());
+        $this->audioFormatClassifier = new AudioFormatClassifier();
     }
 
     /**
@@ -78,12 +81,14 @@ final class ReleaseBuilderService
         $audioAttachmentId = $this->sanitizer->sanitizeAttachmentId((string) ($fields['audio_attachment_id'] ?? '0'));
 
         if ($audioAttachmentId > 0 && $this->trackAudioResolver->isValidTrackAudioReference($audioAttachmentId)) {
-            update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $audioAttachmentId);
+            $this->syncTrackAudioMeta($trackId, $audioAttachmentId);
             return;
         }
 
         if ($audioAttachmentId === 0) {
             delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
+            delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID);
+            delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION);
         }
     }
 
@@ -166,9 +171,18 @@ final class ReleaseBuilderService
             return 0;
         }
 
-        update_post_meta((int) $trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $attachmentId);
+        $this->syncTrackAudioMeta((int) $trackId, $attachmentId);
 
         return (int) $trackId;
+    }
+
+    private function syncTrackAudioMeta(int $trackId, int $attachmentId): void
+    {
+        update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $attachmentId);
+        update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, $attachmentId);
+
+        $classification = $this->audioFormatClassifier->classifyAttachment($attachmentId);
+        update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, $classification['classification']);
     }
 
     /**

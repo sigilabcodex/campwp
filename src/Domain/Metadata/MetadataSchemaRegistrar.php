@@ -186,6 +186,74 @@ final class MetadataSchemaRegistrar
                 'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
             ]
         );
+
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID,
+            [
+                'type' => 'integer',
+                'single' => true,
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID,
+            [
+                'type' => 'integer',
+                'single' => true,
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID,
+            [
+                'type' => 'integer',
+                'single' => true,
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID,
+            [
+                'type' => 'integer',
+                'single' => true,
+                'default' => 0,
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION,
+            [
+                'type' => 'string',
+                'single' => true,
+                'default' => 'unknown',
+                'show_in_rest' => true,
+                'sanitize_callback' => static function ($value): string {
+                    $classification = sanitize_key((string) $value);
+                    return in_array($classification, ['lossless', 'lossy', 'unknown'], true) ? $classification : 'unknown';
+                },
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
     }
 
 

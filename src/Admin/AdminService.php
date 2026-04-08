@@ -98,7 +98,7 @@ final class AdminService
      */
     public function renderAlbumTracksMetaBox($post): void
     {
-        wp_nonce_field(self::NONCE_ACTION, self::NONCE_NAME);
+         wp_nonce_field(self::NONCE_ACTION, self::NONCE_NAME);
 
         $selectedTracks = $this->albumTrackRelationships->getTracksForAlbum((int) $post->ID);
         $trackPosts = $this->albumTrackRelationships->getAssignableTracks();
@@ -147,6 +147,7 @@ final class AdminService
             $credits = (string) get_post_meta($trackId, MetadataKeys::TRACK_CREDITS, true);
             $audioAttachmentId = (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, true);
             $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackId);
+
             $effectiveArtist = $artistDisplay !== '' ? $artistDisplay : $releaseDefaults['artist_display_name'];
             $summaryParts = array_filter([
                 $trackNumber > 0 ? '#' . $trackNumber : '',

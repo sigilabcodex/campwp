@@ -11,7 +11,35 @@ final class PostTypeRegistrar
 
     public function register(): void
     {
+        add_action('after_setup_theme', [$this, 'registerThumbnailThemeSupport']);
         add_action('init', [$this, 'registerPostTypes']);
+    }
+
+    public function registerThumbnailThemeSupport(): void
+    {
+        $postTypes = [self::ALBUM_POST_TYPE, self::TRACK_POST_TYPE];
+
+        if (current_theme_supports('post-thumbnails', self::ALBUM_POST_TYPE) && current_theme_supports('post-thumbnails', self::TRACK_POST_TYPE)) {
+            return;
+        }
+
+        if (current_theme_supports('post-thumbnails') && ! current_theme_supports('post-thumbnails', self::ALBUM_POST_TYPE)) {
+            add_post_type_support(self::ALBUM_POST_TYPE, 'thumbnail');
+        }
+
+        if (current_theme_supports('post-thumbnails') && ! current_theme_supports('post-thumbnails', self::TRACK_POST_TYPE)) {
+            add_post_type_support(self::TRACK_POST_TYPE, 'thumbnail');
+        }
+
+        $existing = get_theme_support('post-thumbnails');
+        $existingTypes = [];
+
+        if (is_array($existing) && isset($existing[0]) && is_array($existing[0])) {
+            $existingTypes = array_map('sanitize_key', $existing[0]);
+        }
+
+        $merged = array_values(array_unique(array_filter(array_merge($existingTypes, $postTypes))));
+        add_theme_support('post-thumbnails', $merged);
     }
 
     public function registerPostTypes(): void

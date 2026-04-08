@@ -9,6 +9,13 @@ use CampWP\Domain\Media\MediaStorageProviderInterface;
 
 final class WordPressMediaLibraryProvider implements MediaStorageProviderInterface
 {
+    public function isAvailable(): bool
+    {
+        return function_exists('wp_get_attachment_url')
+            && function_exists('get_post')
+            && function_exists('wp_attachment_is');
+    }
+
     public function isValidReference(int $referenceId): bool
     {
         return $this->getAttachment($referenceId) instanceof \WP_Post;

@@ -719,9 +719,9 @@ JS;
             echo '<p><strong>' . esc_html__('Source format status', 'campwp') . ':</strong> ' . esc_html($format) . ' — ';
 
             if ($classificationValue === AudioFormatClassification::LOSSLESS) {
-                echo '<span style="color:#0a5c36;">' . esc_html__('Preferred source (lossless master).', 'campwp') . '</span>';
+                echo '<span style="color:#0a5c36;">' . esc_html__('Preferred source: lossless master for highest fidelity.', 'campwp') . '</span>';
             } elseif ($classificationValue === AudioFormatClassification::LOSSY) {
-                echo '<span style="color:#8a6d00;">' . esc_html__('Lossy-only source. No true high-fidelity lossless master can be generated from this file.', 'campwp') . '</span>';
+                echo '<span style="color:#8a6d00;">' . esc_html__('Lossy-only source. Lossless is preferred, and no true hi-fi lossless derivative can be offered from this file.', 'campwp') . '</span>';
             } else {
                 echo '<span style="color:#8a1f11;">' . esc_html__('Unsupported/unknown audio source format for CAMPWP policy.', 'campwp') . '</span>';
             }
@@ -734,6 +734,7 @@ JS;
         echo 'MP3 #' . esc_html((string) $audioAsset->getMp3AttachmentId()) . ', ';
         echo 'OGG #' . esc_html((string) $audioAsset->getOggAttachmentId()) . ', ';
         echo 'Streaming #' . esc_html((string) $audioAsset->getStreamingAttachmentId());
+        echo '. ' . esc_html__('Transcoding is not yet implemented in this pass.', 'campwp');
         echo '</small></p>';
     }
 

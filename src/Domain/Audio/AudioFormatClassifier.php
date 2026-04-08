@@ -7,6 +7,10 @@ namespace CampWP\Domain\Audio;
 final class AudioFormatClassifier
 {
     /**
+     * Preferred source formats: WAV, FLAC, AIFF.
+     * Optional lossy source formats: MP3, OGG.
+     */
+    /**
      * @return array{classification:string,format:string,mime:string,extension:string}
      */
     public function classifyAttachment(int $attachmentId): array

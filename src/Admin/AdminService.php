@@ -166,9 +166,9 @@ final class AdminService
                 echo '<br /><a href="' . esc_url($audioFile->getUrl()) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View audio', 'campwp') . '</a>';
                 echo '<br /><small>' . esc_html(strtoupper((string) $classification['format'])) . ' — ';
                 if ($classification['classification'] === AudioFormatClassification::LOSSLESS) {
-                    echo esc_html__('lossless source master', 'campwp');
+                    echo esc_html__('preferred lossless source master', 'campwp');
                 } elseif ($classification['classification'] === AudioFormatClassification::LOSSY) {
-                    echo esc_html__('lossy-only source (warning)', 'campwp');
+                    echo esc_html__('lossy-only source (lossless preferred; no true hi-fi derivative)', 'campwp');
                 } else {
                     echo esc_html__('unsupported/unknown format', 'campwp');
                 }

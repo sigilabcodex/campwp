@@ -13,15 +13,16 @@ use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 final class ReleaseBuilderService
 {
     private MetadataSanitizer $sanitizer;
-
     private TrackAudioResolver $trackAudioResolver;
     private AudioFormatClassifier $audioFormatClassifier;
+    private TrackMetadataAutofillService $metadataAutofill;
 
-    public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null)
+    public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null, ?TrackMetadataAutofillService $metadataAutofill = null)
     {
         $this->sanitizer = $sanitizer ?? new MetadataSanitizer();
         $this->trackAudioResolver = $trackAudioResolver ?? new TrackAudioResolver(new WordPressMediaLibraryProvider());
         $this->audioFormatClassifier = new AudioFormatClassifier();
+        $this->metadataAutofill = $metadataAutofill ?? new TrackMetadataAutofillService($this->sanitizer);
     }
 
     /**
@@ -44,7 +45,7 @@ final class ReleaseBuilderService
             }
 
             if ($existingTrackId === 0) {
-                $existingTrackId = $this->createTrackFromAttachment($attachmentId);
+                $existingTrackId = $this->createTrackFromAttachment($albumId, $attachmentId);
             }
 
             if ($existingTrackId > 0) {
@@ -90,6 +91,9 @@ final class ReleaseBuilderService
             delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID);
             delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION);
         }
+
+        $albumId = absint(get_post_meta($trackId, MetadataKeys::TRACK_ALBUM_ID, true));
+        $this->applyDefaultMetadataIfMissing($trackId, $albumId);
     }
 
     private function findAlbumTrackByAttachment(int $albumId, int $attachmentId): int
@@ -152,7 +156,7 @@ final class ReleaseBuilderService
         return absint($trackIds[0]);
     }
 
-    private function createTrackFromAttachment(int $attachmentId): int
+    private function createTrackFromAttachment(int $albumId, int $attachmentId): int
     {
         $attachment = get_post($attachmentId);
 
@@ -172,8 +176,39 @@ final class ReleaseBuilderService
         }
 
         $this->syncTrackAudioMeta((int) $trackId, $attachmentId);
+        $this->applyMetadataSuggestions((int) $trackId, $albumId, $attachmentId);
 
         return (int) $trackId;
+    }
+
+    private function applyMetadataSuggestions(int $trackId, int $albumId, int $attachmentId): void
+    {
+        $fields = $this->metadataAutofill->getSuggestedTrackFieldsFromAudio($albumId, $attachmentId);
+        $fields = $this->metadataAutofill->applyTrackDefaults($fields, $albumId, $trackId);
+
+        if ((string) ($fields['title'] ?? '') !== '' && (string) get_the_title($trackId) === '') {
+            wp_update_post([
+                'ID' => $trackId,
+                'post_title' => (string) $fields['title'],
+            ]);
+        }
+
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_SUBTITLE, (string) ($fields['subtitle'] ?? ''));
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_ARTIST_DISPLAY, (string) ($fields['artist_display_name'] ?? ''));
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_NUMBER, (int) ($fields['track_number'] ?? 0));
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_DURATION, (string) ($fields['duration'] ?? ''));
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_CREDITS, (string) ($fields['credits'] ?? ''));
+    }
+
+    private function applyDefaultMetadataIfMissing(int $trackId, int $albumId): void
+    {
+        $fields = $this->metadataAutofill->applyTrackDefaults([], $albumId, $trackId);
+
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_SUBTITLE, (string) ($fields['subtitle'] ?? ''));
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_ARTIST_DISPLAY, (string) ($fields['artist_display_name'] ?? ''));
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_NUMBER, (int) ($fields['track_number'] ?? 0));
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_DURATION, (string) ($fields['duration'] ?? ''));
+        $this->setTrackMetaIfMissing($trackId, MetadataKeys::TRACK_CREDITS, (string) ($fields['credits'] ?? ''));
     }
 
     private function syncTrackAudioMeta(int $trackId, int $attachmentId): void
@@ -192,6 +227,23 @@ final class ReleaseBuilderService
     {
         if ($value === '' || $value === 0) {
             delete_post_meta($trackId, $metaKey);
+            return;
+        }
+
+        update_post_meta($trackId, $metaKey, $value);
+    }
+
+    /**
+     * @param int|string $value
+     */
+    private function setTrackMetaIfMissing(int $trackId, string $metaKey, $value): void
+    {
+        if ($value === '' || $value === 0) {
+            return;
+        }
+
+        $existing = get_post_meta($trackId, $metaKey, true);
+        if ($existing !== '' && $existing !== null && $existing !== []) {
             return;
         }
 

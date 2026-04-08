@@ -32,6 +32,11 @@ final class MetadataKeys
     public const TRACK_ISRC = '_campwp_track_isrc';
     public const TRACK_ARTWORK_ID = '_campwp_track_artwork_id';
     public const TRACK_AUDIO_ATTACHMENT_ID = '_campwp_track_audio_attachment_id';
+    public const TRACK_AUDIO_SOURCE_ATTACHMENT_ID = '_campwp_track_audio_source_attachment_id';
+    public const TRACK_AUDIO_MP3_ATTACHMENT_ID = '_campwp_track_audio_mp3_attachment_id';
+    public const TRACK_AUDIO_OGG_ATTACHMENT_ID = '_campwp_track_audio_ogg_attachment_id';
+    public const TRACK_AUDIO_STREAMING_ATTACHMENT_ID = '_campwp_track_audio_streaming_attachment_id';
+    public const TRACK_AUDIO_SOURCE_CLASSIFICATION = '_campwp_track_audio_source_classification';
 
 
     public const TRACK_DOWNLOAD_ENABLED = '_campwp_track_download_enabled';

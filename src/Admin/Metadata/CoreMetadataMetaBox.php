@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace CampWP\Admin\Metadata;
 
 use CampWP\Admin\Settings\DefaultsSettings;
+use CampWP\Domain\Audio\AudioAssetPolicy;
+use CampWP\Domain\Audio\AudioFormatClassification;
+use CampWP\Domain\Audio\AudioFormatClassifier;
+use CampWP\Domain\Audio\TrackAudioAssetService;
 use CampWP\Domain\Audio\TrackAudioFile;
 use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\Media\AlbumBonusAssetResolver;
@@ -35,6 +39,9 @@ final class CoreMetadataMetaBox
 
     private WooIntegrationService $wooIntegration;
     private DefaultsSettings $defaultsSettings;
+    private AudioFormatClassifier $audioFormatClassifier;
+    private AudioAssetPolicy $audioAssetPolicy;
+    private TrackAudioAssetService $trackAudioAssetService;
 
     public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null, ?AlbumBonusAssetResolver $bonusAssetResolver = null, ?DefaultsSettings $defaultsSettings = null)
     {
@@ -45,6 +52,9 @@ final class CoreMetadataMetaBox
         $this->wooIntegration = new WooIntegrationService();
         $this->entitlementService = new EntitlementService($this->wooIntegration);
         $this->defaultsSettings = $defaultsSettings ?? new DefaultsSettings();
+        $this->audioFormatClassifier = new AudioFormatClassifier();
+        $this->audioAssetPolicy = new AudioAssetPolicy();
+        $this->trackAudioAssetService = new TrackAudioAssetService();
     }
 
     public function register(): void
@@ -554,6 +564,17 @@ JS;
 
         $audioAttachmentId = $this->sanitizeTrackAudioAttachmentId((string) ($values['audio_attachment_id'] ?? '0'));
         $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $audioAttachmentId);
+        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, $audioAttachmentId);
+
+        $classification = $audioAttachmentId > 0 ? $this->audioFormatClassifier->classifyAttachment($audioAttachmentId) : ['classification' => 'unknown'];
+        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, (string) ($classification['classification'] ?? 'unknown'));
+
+        if ($audioAttachmentId === 0) {
+            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID);
+            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID);
+            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID);
+        }
+
         $this->hydrateTrackMetadataFromAudioIfEmpty($postId, $audioAttachmentId);
 
         $override = isset($values['download_override']) ? 1 : 0;
@@ -624,6 +645,11 @@ JS;
             return 0;
         }
 
+        $classification = $this->audioFormatClassifier->classifyAttachment($attachmentId);
+        if (! $this->audioAssetPolicy->shouldAllowSourceClassification((string) ($classification['classification'] ?? AudioFormatClassification::UNKNOWN))) {
+            return 0;
+        }
+
         return $attachmentId;
     }
 
@@ -661,6 +687,9 @@ JS;
     {
         $fieldId = 'campwp-track-audio-attachment-id';
         $audioFile = $this->trackAudioResolver->getTrackAudioFile($postId);
+        $audioAsset = $this->trackAudioAssetService->getForTrack($postId);
+        $referenceId = $audioFile instanceof TrackAudioFile ? $audioFile->getReferenceId() : max(0, absint($value));
+        $classification = $referenceId > 0 ? $this->audioFormatClassifier->classifyAttachment($referenceId) : null;
 
         echo '<p>';
         echo '<label for="' . esc_attr($fieldId) . '">';
@@ -683,6 +712,29 @@ JS;
             }
             echo '</p>';
         }
+
+        if (is_array($classification)) {
+            $classificationValue = (string) ($classification['classification'] ?? AudioFormatClassification::UNKNOWN);
+            $format = strtoupper((string) ($classification['format'] ?? 'unknown'));
+            echo '<p><strong>' . esc_html__('Source format status', 'campwp') . ':</strong> ' . esc_html($format) . ' — ';
+
+            if ($classificationValue === AudioFormatClassification::LOSSLESS) {
+                echo '<span style="color:#0a5c36;">' . esc_html__('Preferred source (lossless master).', 'campwp') . '</span>';
+            } elseif ($classificationValue === AudioFormatClassification::LOSSY) {
+                echo '<span style="color:#8a6d00;">' . esc_html__('Lossy-only source. No true high-fidelity lossless master can be generated from this file.', 'campwp') . '</span>';
+            } else {
+                echo '<span style="color:#8a1f11;">' . esc_html__('Unsupported/unknown audio source format for CAMPWP policy.', 'campwp') . '</span>';
+            }
+
+            echo '</p>';
+        }
+
+        echo '<p><small>';
+        echo esc_html__('Derivative slots', 'campwp') . ': ';
+        echo 'MP3 #' . esc_html((string) $audioAsset->getMp3AttachmentId()) . ', ';
+        echo 'OGG #' . esc_html((string) $audioAsset->getOggAttachmentId()) . ', ';
+        echo 'Streaming #' . esc_html((string) $audioAsset->getStreamingAttachmentId());
+        echo '</small></p>';
     }
 
     private function renderTrackArtworkField(string $value): void

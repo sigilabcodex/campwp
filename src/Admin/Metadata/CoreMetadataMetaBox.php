@@ -141,7 +141,7 @@ final class CoreMetadataMetaBox
         $this->renderTextareaField('campwp_track_metadata[credits]', __('Credits', 'campwp'), $credits);
         $this->renderTextareaField('campwp_track_metadata[lyrics]', __('Lyrics', 'campwp'), $lyrics);
         $this->renderTextField('campwp_track_metadata[isrc]', __('ISRC', 'campwp'), $isrc);
-        $this->renderNumberField('campwp_track_metadata[artwork_id]', __('Track Artwork Attachment ID', 'campwp'), $artworkId);
+        $this->renderTrackArtworkField($artworkId);
         $this->renderTrackAudioAttachmentField((int) $post->ID, $audioAttachmentId);
         $this->renderDownloadSettingsSection((int) $post->ID, false);
         echo '<p><em>' . esc_html__('Optional: store a Media Library attachment ID for track-specific artwork.', 'campwp') . '</em></p>';
@@ -360,6 +360,131 @@ final class CoreMetadataMetaBox
         writeBonusItems($input, items);
         renderBonusList($list, items);
     });
+
+    $(document).on('click', '.campwp-track-artwork-select', function(event){
+        event.preventDefault();
+
+        var targetInputId = $(this).data('target-input');
+        var targetPreviewId = $(this).data('target-preview');
+        var $input = $('#' + targetInputId);
+        var $preview = $('#' + targetPreviewId);
+
+        if ($input.length === 0 || typeof wp === 'undefined' || typeof wp.media === 'undefined') {
+            return;
+        }
+
+        var frame = wp.media({
+            title: 'Select Track Artwork',
+            library: { type: 'image' },
+            button: { text: 'Use this image' },
+            multiple: false
+        });
+
+        frame.on('select', function(){
+            var attachment = frame.state().get('selection').first().toJSON();
+
+            if (!attachment || !attachment.id) {
+                return;
+            }
+
+            $input.val(attachment.id).trigger('change');
+
+            if ($preview.length === 0) {
+                return;
+            }
+
+            var imageUrl = attachment.url ? attachment.url : '';
+            var label = attachment.title ? attachment.title : ('Attachment #' + attachment.id);
+
+            if (imageUrl !== '') {
+                $preview.html('<img src="' + imageUrl + '" alt="" style="max-width:160px;height:auto;display:block;margin-bottom:6px;" /><span>' + label + ' (#' + attachment.id + ')</span>');
+                return;
+            }
+
+            $preview.html('<span>' + label + ' (#' + attachment.id + ')</span>');
+        });
+
+        frame.open();
+    });
+
+    $(document).on('click', '.campwp-track-artwork-clear', function(event){
+        event.preventDefault();
+
+        var targetInputId = $(this).data('target-input');
+        var targetPreviewId = $(this).data('target-preview');
+        var $input = $('#' + targetInputId);
+        var $preview = $('#' + targetPreviewId);
+
+        if ($input.length) {
+            $input.val('0').trigger('change');
+        }
+
+        if ($preview.length) {
+            $preview.html('<em>No track artwork selected.</em>');
+        }
+    });
+
+    $(document).on('click', '.campwp-release-builder-add-audio', function(event){
+        event.preventDefault();
+
+        if (typeof wp === 'undefined' || typeof wp.media === 'undefined') {
+            return;
+        }
+
+        var $input = $('#campwp-release-builder-audio-ids');
+        var $preview = $('#campwp-release-builder-audio-preview');
+
+        if ($input.length === 0 || $preview.length === 0) {
+            return;
+        }
+
+        var frame = wp.media({
+            title: 'Add Audio to Release',
+            library: { type: 'audio' },
+            button: { text: 'Use selected audio' },
+            multiple: true
+        });
+
+        frame.on('select', function(){
+            var selected = frame.state().get('selection').toJSON();
+            var ids = [];
+            var names = [];
+
+            selected.forEach(function(item){
+                if (!item || !item.id) {
+                    return;
+                }
+
+                ids.push(parseInt(item.id, 10));
+                names.push((item.title ? item.title : 'Attachment #' + item.id) + ' (#' + item.id + ')');
+            });
+
+            $input.val(ids.join(','));
+
+            if (names.length === 0) {
+                $preview.html('<em>No new audio selected yet.</em>');
+                return;
+            }
+
+            var html = '<ul>';
+            names.forEach(function(name){
+                html += '<li>' + name + '</li>';
+            });
+            html += '</ul>';
+            $preview.html(html);
+        });
+
+        frame.open();
+    });
+
+    $(document).on('click', '#set-post-thumbnail', function(event){
+        if (typeof wp === 'undefined' || typeof wp.media === 'undefined' || !wp.media.featuredImage) {
+            return;
+        }
+
+        event.preventDefault();
+        wp.media.featuredImage.frame().open();
+    });
 })(jQuery);
 JS;
 
@@ -557,6 +682,43 @@ JS;
                 echo '<br /><code>' . esc_html($audioFile->getFilePath()) . '</code>';
             }
             echo '</p>';
+        }
+    }
+
+    private function renderTrackArtworkField(string $value): void
+    {
+        $fieldId = 'campwp-track-artwork-attachment-id';
+        $previewId = 'campwp-track-artwork-preview';
+        $artworkId = absint($value);
+        $artworkUrl = $artworkId > 0 ? wp_get_attachment_image_url($artworkId, 'thumbnail') : '';
+        $artworkTitle = $artworkId > 0 ? get_the_title($artworkId) : '';
+
+        echo '<p>';
+        echo '<label for="' . esc_attr($fieldId) . '">';
+        echo '<strong>' . esc_html__('Track Artwork Attachment ID', 'campwp') . '</strong><br />';
+        echo '<input type="number" min="0" step="1" class="regular-text" id="' . esc_attr($fieldId) . '" name="campwp_track_metadata[artwork_id]" value="' . esc_attr($value) . '" />';
+        echo '</label> ';
+        echo '<button type="button" class="button campwp-track-artwork-select" data-target-input="' . esc_attr($fieldId) . '" data-target-preview="' . esc_attr($previewId) . '">' . esc_html__('Select Artwork', 'campwp') . '</button> ';
+        echo '<button type="button" class="button-link-delete campwp-track-artwork-clear" data-target-input="' . esc_attr($fieldId) . '" data-target-preview="' . esc_attr($previewId) . '">' . esc_html__('Clear', 'campwp') . '</button>';
+        echo '</p>';
+
+        echo '<p id="' . esc_attr($previewId) . '">';
+        if ($artworkId <= 0) {
+            echo '<em>' . esc_html__('No track artwork selected.', 'campwp') . '</em>';
+        } else {
+            $label = $artworkTitle !== '' ? $artworkTitle : sprintf('Attachment #%d', $artworkId);
+            if (is_string($artworkUrl) && $artworkUrl !== '') {
+                echo '<img src="' . esc_url($artworkUrl) . '" alt="" style="max-width:160px;height:auto;display:block;margin-bottom:6px;" />';
+            }
+            echo esc_html($label) . ' (#' . esc_html((string) $artworkId) . ')';
+        }
+        echo '</p>';
+
+        if ($artworkId > 0) {
+            $attachmentUrl = wp_get_attachment_url($artworkId);
+            if (is_string($attachmentUrl) && $attachmentUrl !== '') {
+                echo '<p><a href="' . esc_url($attachmentUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View artwork file', 'campwp') . '</a></p>';
+            }
         }
     }
 

@@ -43,7 +43,6 @@ final class AdminService
 
         add_action('add_meta_boxes', [$this, 'registerAlbumTracksMetaBox']);
         add_action('add_meta_boxes', [$this, 'cleanupEditingScreens'], 99);
-        add_action('admin_enqueue_scripts', [$this, 'enqueueReleaseBuilderAssets']);
         add_filter('use_block_editor_for_post_type', [$this, 'disableBlockEditorForCampwpTypes'], 10, 2);
 
         foreach ($this->getAlbumPostTypes() as $albumPostType) {
@@ -242,78 +241,6 @@ final class AdminService
         }
 
         $this->albumTrackRelationships->saveAlbumTrackAssignments($postId, $mergedIds, $rawOrders);
-    }
-
-    public function enqueueReleaseBuilderAssets(string $hookSuffix): void
-    {
-        if (! in_array($hookSuffix, ['post.php', 'post-new.php'], true)) {
-            return;
-        }
-
-        $screen = get_current_screen();
-        if (! $screen instanceof \WP_Screen || ! in_array($screen->post_type, $this->getAlbumPostTypes(), true)) {
-            return;
-        }
-
-        wp_enqueue_media();
-        wp_enqueue_script('jquery');
-
-        $script = <<<'JS'
-(function($){
-    'use strict';
-
-    $(document).on('click', '.campwp-release-builder-add-audio', function(event){
-        event.preventDefault();
-
-        if (typeof wp === 'undefined' || typeof wp.media === 'undefined') {
-            return;
-        }
-
-        var $input = $('#campwp-release-builder-audio-ids');
-        var $preview = $('#campwp-release-builder-audio-preview');
-
-        var frame = wp.media({
-            title: 'Add Audio to Release',
-            library: { type: 'audio' },
-            button: { text: 'Use selected audio' },
-            multiple: true
-        });
-
-        frame.on('select', function(){
-            var selected = frame.state().get('selection').toJSON();
-            var ids = [];
-            var names = [];
-
-            selected.forEach(function(item){
-                if (!item || !item.id) {
-                    return;
-                }
-
-                ids.push(parseInt(item.id, 10));
-                names.push((item.title ? item.title : 'Attachment #' + item.id) + ' (#' + item.id + ')');
-            });
-
-            $input.val(ids.join(','));
-
-            if (names.length === 0) {
-                $preview.html('<em>No new audio selected yet.</em>');
-                return;
-            }
-
-            var html = '<ul>';
-            names.forEach(function(name){
-                html += '<li>' + name + '</li>';
-            });
-            html += '</ul>';
-            $preview.html(html);
-        });
-
-        frame.open();
-    });
-})(jQuery);
-JS;
-
-        wp_add_inline_script('jquery', $script);
     }
 
     /**

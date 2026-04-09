@@ -83,10 +83,7 @@ final class AlbumViewDataProvider
         return apply_filters('campwp_album_view_data', $data, $album);
     }
 
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function getTrackRows(int $albumId): array
+
 /**
  * @return list<array<string, mixed>>
  */

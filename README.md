@@ -39,14 +39,15 @@ This repository currently contains a minimal, production-safe scaffold for the C
 
 ## Release Builder architecture (current)
 
-- The release builder now uses a compact track list with one focused editor panel for the active track.
+- The release builder uses a compact track list with one focused editor panel for the active track.
+- `Add Audio Files` now creates/assigns tracks immediately in the release builder list and auto-focuses the first newly added track for editing.
+- Existing standalone tracks are added via a searchable picker (instead of raw multi-select) and appear instantly in the release list.
 - Track reordering remains available from the list via order inputs.
 - Track metadata editing is single-track-at-a-time while preserving compatibility with existing payload/storage (`campwp_release_builder[tracks][<id>]`).
-- Existing standalone tracks remain assignable into a release.
 
 ## Audio metadata extraction + defaults
 
-- When audio is added through the release builder, CAMPWP attempts conservative metadata extraction from attachment files via WordPress audio metadata APIs.
+- When audio is added through the release builder, CAMPWP attempts conservative metadata extraction from attachment files via WordPress audio metadata APIs. The UI now surfaces source-quality guidance directly in the builder (lossless WAV/FLAC preferred, lossy accepted with warnings).
 - Supported extraction targets include title, artist, album, track number, year/date, comments/composer-to-credits hints, and duration when available.
 - Conservative filename fallback parsing is applied when embedded metadata is absent (for patterns like `01 - Artist - Title` and `01 Title`).
 - Release-level defaults and track-level overrides follow inheritance rules:

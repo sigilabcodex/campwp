@@ -59,3 +59,7 @@ This repository currently contains a minimal, production-safe scaffold for the C
 
 - Frontend download URLs route through `/campwp-download/...` endpoints.
 - Access checks remain centralized in entitlement + resolver services before redirecting to media assets.
+
+## Metadata model research
+
+- See `docs/track-metadata-v2-proposal.md` for the track metadata audit, v2 proposal, compatibility strategy, and phased roadmap.

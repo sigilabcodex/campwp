@@ -55,6 +55,7 @@ final class AdminService
         add_filter('use_block_editor_for_post_type', [$this, 'disableBlockEditorForCampwpTypes'], 10, 2);
         add_action('wp_ajax_' . self::AUDIO_AJAX_ACTION, [$this, 'ajaxAddReleaseAudioTracks']);
         add_action('wp_ajax_' . self::EXISTING_TRACK_AJAX_ACTION, [$this, 'ajaxAddExistingReleaseTrack']);
+        add_action('transition_post_status', [$this, 'publishAssignedTracksWhenAlbumPublishes'], 10, 3);
 
         foreach ($this->getAlbumPostTypes() as $albumPostType) {
             add_action('save_post_' . $albumPostType, [$this, 'saveAlbumTracksMetaBox'], 10, 2);
@@ -107,9 +108,20 @@ final class AdminService
         $selectedTracks = $this->albumTrackRelationships->getTracksForAlbum((int) $post->ID);
         $trackPosts = $this->albumTrackRelationships->getAssignableTracks();
         $selectedTrackIds = array_map('absint', wp_list_pluck($selectedTracks, 'ID'));
+        $unpublishedCount = 0;
+
+        foreach ($selectedTracks as $selectedTrack) {
+            if ((string) $selectedTrack->post_status !== 'publish') {
+                $unpublishedCount++;
+            }
+        }
 
         echo '<p>' . esc_html__('Build this release in three steps: add audio files and/or existing tracks, confirm they appear below, then edit one selected track at a time.', 'campwp') . '</p>';
         echo '<div class="notice notice-info inline"><p><strong>' . esc_html__('Source quality guidance:', 'campwp') . '</strong> ' . esc_html__('Lossless masters are preferred (WAV / FLAC). MP3 and other lossy files can be used but are suboptimal source material.', 'campwp') . '</p></div>';
+        echo '<div class="notice notice-info inline"><p><strong>' . esc_html__('Track visibility:', 'campwp') . '</strong> ' . esc_html__('Only published tracks appear on the public release page. Publishing this release will publish any assigned draft, pending, private, or scheduled tracks.', 'campwp') . '</p></div>';
+        if ($unpublishedCount > 0) {
+            echo '<div class="notice notice-warning inline"><p>' . esc_html(sprintf(_n('%d assigned track is not published yet.', '%d assigned tracks are not published yet.', $unpublishedCount, 'campwp'), $unpublishedCount)) . ' ' . esc_html__('These are editable in Release Builder but hidden from the public release until they are published.', 'campwp') . '</p></div>';
+        }
 
         echo '<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">';
         echo '<button type="button" class="button button-secondary campwp-release-builder-add-audio" data-album-id="' . esc_attr((string) $post->ID) . '" data-audio-nonce="' . esc_attr(wp_create_nonce(self::AUDIO_AJAX_ACTION . '_' . (int) $post->ID)) . '">' . esc_html__('Add Audio Files', 'campwp') . '</button>';
@@ -337,6 +349,35 @@ final class AdminService
     }
 
     /**
+     * @param \WP_Post $post
+     */
+    public function publishAssignedTracksWhenAlbumPublishes(string $newStatus, string $oldStatus, $post): void
+    {
+        if (! $post instanceof \WP_Post) {
+            return;
+        }
+
+        if (! in_array($post->post_type, $this->getAlbumPostTypes(), true)) {
+            return;
+        }
+
+        if ($newStatus !== 'publish' || $oldStatus === 'publish') {
+            return;
+        }
+
+        foreach ($this->albumTrackRelationships->getTracksForAlbum((int) $post->ID) as $trackPost) {
+            if ((string) $trackPost->post_status === 'publish') {
+                continue;
+            }
+
+            wp_update_post([
+                'ID' => (int) $trackPost->ID,
+                'post_status' => 'publish',
+            ]);
+        }
+    }
+
+    /**
      * @return list<string>
      */
     private function getAlbumPostTypes(): array
@@ -408,6 +449,7 @@ final class AdminService
             $trackNumber > 0 ? '#' . $trackNumber : '',
             $duration !== '' ? $duration : '',
             $effectiveArtist !== '' ? $effectiveArtist : '',
+            $this->getTrackStatusLabel((string) get_post_status($trackId)),
         ]);
 
         return [
@@ -443,6 +485,31 @@ final class AdminService
         }
 
         return __('Audio: unsupported/unknown format', 'campwp');
+    }
+
+    private function getTrackStatusLabel(string $postStatus): string
+    {
+        if ($postStatus === 'publish') {
+            return __('Status: Published', 'campwp');
+        }
+
+        if ($postStatus === 'draft') {
+            return __('Status: Draft', 'campwp');
+        }
+
+        if ($postStatus === 'pending') {
+            return __('Status: Pending review', 'campwp');
+        }
+
+        if ($postStatus === 'future') {
+            return __('Status: Scheduled', 'campwp');
+        }
+
+        if ($postStatus === 'private') {
+            return __('Status: Private', 'campwp');
+        }
+
+        return __('Status: Unpublished', 'campwp');
     }
 
     private function getTrackPostType(): string

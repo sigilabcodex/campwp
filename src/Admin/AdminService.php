@@ -459,11 +459,11 @@ final class AdminService
     private function renderTrackEditorScript(int $albumId): void
     {
         $defaults = $this->inheritance->getReleaseDefaults($albumId);
-        $defaultArtist = esc_js((string) $defaults['artist_display_name']);
-        $defaultCredits = esc_js((string) $defaults['credits']);
-        $ajaxUrl = esc_url_raw(admin_url('admin-ajax.php'));
-        $action = self::AUDIO_AJAX_ACTION;
-        $existingTrackAction = self::EXISTING_TRACK_AJAX_ACTION;
+        $defaultArtist = wp_json_encode((string) $defaults['artist_display_name']);
+        $defaultCredits = wp_json_encode((string) $defaults['credits']);
+        $ajaxUrl = wp_json_encode(admin_url('admin-ajax.php'));
+        $action = wp_json_encode(self::AUDIO_AJAX_ACTION);
+        $existingTrackAction = wp_json_encode(self::EXISTING_TRACK_AJAX_ACTION);
 
         $script = <<<JS
         jQuery(function($) {
@@ -494,7 +494,7 @@ final class AdminService
                 var duration = hiddenField(trackId, 'duration').val() || '';
                 var artist = hiddenField(trackId, 'artist_display_name').val() || '';
                 if (!artist) {
-                    artist = '{$defaultArtist}';
+                    artist = {$defaultArtist};
                 }
 
                 var parts = [];
@@ -524,8 +524,8 @@ final class AdminService
                 $('.campwp-track-title[data-track-id="' + activeTrackId + '"]').text(editorField('title').val() || '(untitled)');
                 summarize(activeTrackId);
 
-                var effectiveArtist = editorField('artist_display_name').val() || '{$defaultArtist}';
-                var effectiveCredits = editorField('credits').val() || '{$defaultCredits}';
+                var effectiveArtist = editorField('artist_display_name').val() || {$defaultArtist};
+                var effectiveCredits = editorField('credits').val() || {$defaultCredits};
                 var description = '';
 
                 if (effectiveArtist) {
@@ -626,8 +626,8 @@ final class AdminService
                     var albumId = list.data('album-id');
                     var nonce = list.data('existing-track-nonce');
 
-                    $.post('{$ajaxUrl}', {
-                        action: '{$existingTrackAction}',
+                    $.post({$ajaxUrl}, {
+                        action: {$existingTrackAction},
                         album_id: albumId,
                         nonce: nonce,
                         track_id: trackId
@@ -664,8 +664,8 @@ final class AdminService
                 var albumId = button.data('album-id');
                 var nonce = button.data('audio-nonce');
 
-                $.post('{$ajaxUrl}', {
-                    action: '{$action}',
+                $.post({$ajaxUrl}, {
+                    action: {$action},
                     album_id: albumId,
                     nonce: nonce,
                     audio_ids: payload.ids.join(',')
@@ -701,6 +701,6 @@ final class AdminService
             }
         });
 JS;
-        wp_add_inline_script('jquery', $script);
+        echo '<script>' . $script . '</script>';
     }
 }

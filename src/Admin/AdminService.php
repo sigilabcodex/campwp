@@ -23,6 +23,7 @@ final class AdminService
     private const NONCE_ACTION = 'campwp_save_album_tracks';
     private const NONCE_NAME = 'campwp_album_tracks_nonce';
     private const AUDIO_AJAX_ACTION = 'campwp_release_builder_add_audio';
+    private const EXISTING_TRACK_AJAX_ACTION = 'campwp_release_builder_add_existing_track';
 
     private AlbumTrackRelationshipService $albumTrackRelationships;
     private ReleaseBuilderService $releaseBuilder;
@@ -53,6 +54,7 @@ final class AdminService
         add_action('add_meta_boxes', [$this, 'cleanupEditingScreens'], 99);
         add_filter('use_block_editor_for_post_type', [$this, 'disableBlockEditorForCampwpTypes'], 10, 2);
         add_action('wp_ajax_' . self::AUDIO_AJAX_ACTION, [$this, 'ajaxAddReleaseAudioTracks']);
+        add_action('wp_ajax_' . self::EXISTING_TRACK_AJAX_ACTION, [$this, 'ajaxAddExistingReleaseTrack']);
 
         foreach ($this->getAlbumPostTypes() as $albumPostType) {
             add_action('save_post_' . $albumPostType, [$this, 'saveAlbumTracksMetaBox'], 10, 2);
@@ -120,7 +122,7 @@ final class AdminService
         echo '<hr style="margin:16px 0;" />';
         echo '<p><strong>' . esc_html__('Add Existing Tracks', 'campwp') . '</strong><br /><span class="description">' . esc_html__('Search and add from standalone/unassigned tracks. Added tracks appear instantly in the release list.', 'campwp') . '</span></p>';
         echo '<input type="search" id="campwp-release-builder-existing-search" class="regular-text" placeholder="' . esc_attr__('Search tracks by title or ID…', 'campwp') . '" style="max-width:420px;width:100%;" />';
-        echo '<ul id="campwp-release-builder-existing-results" style="max-height:180px;overflow:auto;border:1px solid #ccd0d4;padding:8px;margin:8px 0;">';
+        echo '<ul id="campwp-release-builder-existing-results" data-album-id="' . esc_attr((string) $post->ID) . '" data-existing-track-nonce="' . esc_attr(wp_create_nonce(self::EXISTING_TRACK_AJAX_ACTION . '_' . (int) $post->ID)) . '" style="max-height:180px;overflow:auto;border:1px solid #ccd0d4;padding:8px;margin:8px 0;">';
 
         $hasAvailableTracks = false;
         foreach ($trackPosts as $trackPost) {
@@ -143,7 +145,8 @@ final class AdminService
         echo '</ul>';
 
         echo '<p>' . esc_html__('Track list stays compact. Use “Edit” to load one track into the focused panel.', 'campwp') . '</p>';
-        echo '<table class="widefat striped">';
+        echo '<div style="max-height:360px; overflow:auto; border:1px solid #ccd0d4;">';
+        echo '<table class="widefat striped" style="margin:0;">';
         echo '<thead><tr>';
         echo '<th scope="col">' . esc_html__('Order', 'campwp') . '</th>';
         echo '<th scope="col">' . esc_html__('Track', 'campwp') . '</th>';
@@ -163,6 +166,7 @@ final class AdminService
         }
 
         echo '</tbody></table>';
+        echo '</div>';
 
         echo '<div id="campwp-release-track-editor" style="margin-top:16px;padding:12px;border:1px solid #ccd0d4;background:#fff;">';
         echo '<h3 style="margin-top:0;" id="campwp-release-track-editor-heading">' . esc_html__('Track Editor', 'campwp') . '</h3>';
@@ -305,6 +309,33 @@ final class AdminService
         ]);
     }
 
+    public function ajaxAddExistingReleaseTrack(): void
+    {
+        $albumId = absint($_POST['album_id'] ?? 0);
+        $trackId = absint($_POST['track_id'] ?? 0);
+        $nonce = sanitize_text_field(wp_unslash((string) ($_POST['nonce'] ?? '')));
+
+        if ($albumId <= 0 || ! wp_verify_nonce($nonce, self::EXISTING_TRACK_AJAX_ACTION . '_' . $albumId)) {
+            wp_send_json_error(['message' => __('Could not verify request.', 'campwp')], 403);
+        }
+
+        if (! current_user_can('edit_post', $albumId) || ! current_user_can('edit_post', $trackId)) {
+            wp_send_json_error(['message' => __('You do not have permission to edit this release.', 'campwp')], 403);
+        }
+
+        $releaseDefaults = $this->inheritance->getReleaseDefaults($albumId);
+        $trackData = $this->getReleaseTrackData($trackId, $releaseDefaults);
+
+        if ($trackData === null) {
+            wp_send_json_error(['message' => __('Invalid track selected.', 'campwp')], 400);
+        }
+
+        wp_send_json_success([
+            'message' => __('Track added to release builder list.', 'campwp'),
+            'track' => $trackData,
+        ]);
+    }
+
     /**
      * @return list<string>
      */
@@ -359,7 +390,7 @@ final class AdminService
      */
     private function getReleaseTrackData(int $trackId, array $releaseDefaults): ?array
     {
-        if ($trackId <= 0 || get_post_type($trackId) !== PostTypeRegistrar::TRACK_POST_TYPE) {
+        if ($trackId <= 0 || get_post_type($trackId) !== $this->getTrackPostType()) {
             return null;
         }
 
@@ -414,6 +445,17 @@ final class AdminService
         return __('Audio: unsupported/unknown format', 'campwp');
     }
 
+    private function getTrackPostType(): string
+    {
+        $postType = apply_filters('campwp_track_post_type', PostTypeRegistrar::TRACK_POST_TYPE);
+
+        if (! is_string($postType) || $postType === '') {
+            return PostTypeRegistrar::TRACK_POST_TYPE;
+        }
+
+        return sanitize_key($postType);
+    }
+
     private function renderTrackEditorScript(int $albumId): void
     {
         $defaults = $this->inheritance->getReleaseDefaults($albumId);
@@ -421,10 +463,23 @@ final class AdminService
         $defaultCredits = esc_js((string) $defaults['credits']);
         $ajaxUrl = esc_url_raw(admin_url('admin-ajax.php'));
         $action = self::AUDIO_AJAX_ACTION;
+        $existingTrackAction = self::EXISTING_TRACK_AJAX_ACTION;
 
         $script = <<<JS
         jQuery(function($) {
-            var activeTrackId = null;
+                var activeTrackId = null;
+
+            function getNextOrder() {
+                var maxOrder = 0;
+                $('#campwp-track-list-body input[name$="[order]"]').each(function(){
+                    var value = parseInt($(this).val(), 10);
+                    if (!Number.isNaN(value) && value > maxOrder) {
+                        maxOrder = value;
+                    }
+                });
+
+                return maxOrder + 1;
+            }
 
             function hiddenField(trackId, fieldName) {
                 return $('.campwp-track-field[data-track-id="' + trackId + '"][data-field="' + fieldName + '"]');
@@ -518,7 +573,7 @@ final class AdminService
                 '<tr class="campwp-track-row" data-track-id="' + trackId + '">' +
                     '<td>' +
                         '<input type="hidden" name="campwp_release_builder[tracks][' + trackId + '][id]" value="' + trackId + '" />' +
-                        '<input type="number" min="1" step="1" class="small-text" name="campwp_release_builder[tracks][' + trackId + '][order]" value="1" />' +
+                        '<input type="number" min="1" step="1" class="small-text" name="campwp_release_builder[tracks][' + trackId + '][order]" value="' + (track.order || getNextOrder()) + '" />' +
                         '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="title" name="campwp_release_builder[tracks][' + trackId + '][title]" value="' + $('<div/>').text(track.title || '').html() + '" />' +
                         '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="subtitle" name="campwp_release_builder[tracks][' + trackId + '][subtitle]" value="' + $('<div/>').text(track.subtitle || '').html() + '" />' +
                         '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="track_number" name="campwp_release_builder[tracks][' + trackId + '][track_number]" value="' + (track.track_number || '') + '" />' +
@@ -567,18 +622,33 @@ final class AdminService
                 }
 
                 if ($('.campwp-track-row[data-track-id="' + trackId + '"]').length === 0) {
-                    appendTrackRow({
-                        id: parseInt(trackId, 10),
-                        title: option.find('span').text().replace(/\s+#\d+$/, ''),
-                        subtitle: '',
-                        track_number: '',
-                        duration: '',
-                        artist_display_name: '',
-                        credits: '',
-                        audio_attachment_id: 0,
-                        summary: '',
-                        classification_label: 'No source audio linked'
+                    var list = $('#campwp-release-builder-existing-results');
+                    var albumId = list.data('album-id');
+                    var nonce = list.data('existing-track-nonce');
+
+                    $.post('{$ajaxUrl}', {
+                        action: '{$existingTrackAction}',
+                        album_id: albumId,
+                        nonce: nonce,
+                        track_id: trackId
+                    }).done(function(response){
+                        var track = response && response.success && response.data
+                            ? (response.data.track || null)
+                            : null;
+
+                        if (!track) {
+                            updateAudioFeedback('error', (response && response.data && response.data.message) ? response.data.message : 'Could not add selected track.');
+                            return;
+                        }
+
+                        appendTrackRow(track);
+                        option.remove();
+                        loadTrack(trackId);
+                        updateAudioFeedback('success', response.data.message || 'Track added to release builder list.');
+                    }).fail(function(){
+                        updateAudioFeedback('error', 'Failed to add selected track. Please try again.');
                     });
+                    return;
                 }
 
                 option.remove();

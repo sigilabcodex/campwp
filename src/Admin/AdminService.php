@@ -375,7 +375,7 @@ final class AdminService
         echo '<td><strong class="campwp-track-title" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html((string) $trackData['title']) . '</strong></td>';
         echo '<td><small class="campwp-track-summary" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html((string) $trackData['summary']) . '</small><br /><small class="campwp-track-classification" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html((string) $trackData['classification_label']) . '</small></td>';
         echo '<td><button type="button" class="button button-secondary campwp-edit-track" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html__('Edit', 'campwp') . '</button></td>';
-        echo '<td><label><input type="checkbox" name="campwp_release_builder[tracks][' . esc_attr((string) $trackId) . '][remove]" value="1" /> ' . esc_html__('Remove', 'campwp') . '</label></td>';
+        echo '<td><button type="button" class="button button-link-delete campwp-unassign-track" data-track-id="' . esc_attr((string) $trackId) . '" data-confirming="0" aria-label="' . esc_attr__('Unassign track from this release', 'campwp') . '">' . esc_html__('Remove', 'campwp') . '</button></td>';
         echo '</tr>';
     }
 
@@ -585,11 +585,65 @@ final class AdminService
                     '<td><strong class="campwp-track-title" data-track-id="' + trackId + '">' + $('<div/>').text(track.title || '').html() + '</strong></td>' +
                     '<td><small class="campwp-track-summary" data-track-id="' + trackId + '">' + $('<div/>').text(track.summary || '').html() + '</small><br /><small class="campwp-track-classification" data-track-id="' + trackId + '">' + $('<div/>').text(track.classification_label || '').html() + '</small></td>' +
                     '<td><button type="button" class="button button-secondary campwp-edit-track" data-track-id="' + trackId + '">Edit</button></td>' +
-                    '<td><label><input type="checkbox" name="campwp_release_builder[tracks][' + trackId + '][remove]" value="1" /> Remove</label></td>' +
+                    '<td><button type="button" class="button button-link-delete campwp-unassign-track" data-track-id="' + trackId + '" data-confirming="0" aria-label="Unassign track from this release">Remove</button></td>' +
                 '</tr>';
 
                 $('#campwp-track-list-empty').remove();
                 $('#campwp-track-list-body').append(rowHtml);
+            }
+
+            function clearEditor() {
+                activeTrackId = null;
+                $('#campwp-release-track-editor-fields').hide();
+                $('#campwp-release-track-editor-heading').text('Track Editor');
+                $('#campwp-release-track-editor-help').text('Select a track from the list above to edit its metadata.');
+                $('#campwp-release-track-editor-effective').text('');
+                $('.campwp-track-row').removeClass('campwp-track-row--active');
+                $('[data-editor-field]').each(function() {
+                    $(this).val('');
+                });
+            }
+
+            function resequenceOrders() {
+                $('#campwp-track-list-body .campwp-track-row').each(function(index){
+                    $(this).find('input[name$=\"[order]\"]').first().val(index + 1);
+                });
+            }
+
+            function resetRemoveConfirmState(exceptTrackId) {
+                $('.campwp-unassign-track').each(function(){
+                    var button = $(this);
+                    var buttonTrackId = String(button.data('track-id'));
+                    if (exceptTrackId && buttonTrackId === exceptTrackId) {
+                        return;
+                    }
+                    if (button.data('confirming') === 1 || button.attr('data-confirming') === '1') {
+                        button.data('confirming', 0);
+                        button.attr('data-confirming', '0');
+                        button.text('Remove');
+                    }
+                });
+            }
+
+            function restoreTrackToExistingList(row, trackId) {
+                var existingList = $('#campwp-release-builder-existing-results');
+                if (existingList.length === 0) {
+                    return;
+                }
+
+                if (existingList.find('.campwp-existing-track-item[data-track-id=\"' + trackId + '\"]').length > 0) {
+                    return;
+                }
+
+                var title = row.find('.campwp-track-title').first().text() || ('Track #' + trackId);
+                var label = (title + ' #' + trackId).toLowerCase();
+                var itemHtml = '' +
+                    '<li class=\"campwp-existing-track-item\" data-track-id=\"' + trackId + '\" data-track-label=\"' + $('<div/>').text(label).html() + '\">' +
+                    '<button type=\"button\" class=\"button button-small campwp-add-existing-track\" data-track-id=\"' + trackId + '\">Add</button> ' +
+                    '<span>' + $('<div/>').text(title).html() + ' <code>#' + $('<div/>').text(trackId).html() + '</code></span>' +
+                    '</li>';
+                existingList.append(itemHtml);
+                filterExistingTracks();
             }
 
             function updateAudioFeedback(type, text) {
@@ -608,7 +662,54 @@ final class AdminService
             }
 
             $(document).on('click', '.campwp-edit-track', function() {
+                resetRemoveConfirmState();
                 loadTrack($(this).data('track-id').toString());
+            });
+
+            $(document).on('click', '.campwp-unassign-track', function() {
+                var button = $(this);
+                var trackId = String(button.data('track-id'));
+                var isConfirming = button.data('confirming') === 1 || button.attr('data-confirming') === '1';
+
+                resetRemoveConfirmState(trackId);
+
+                if (!isConfirming) {
+                    button.data('confirming', 1);
+                    button.attr('data-confirming', '1');
+                    button.text('Confirm remove');
+                    return;
+                }
+
+                var row = $('.campwp-track-row[data-track-id=\"' + trackId + '\"]');
+                if (row.length === 0) {
+                    return;
+                }
+
+                var wasActive = activeTrackId && String(activeTrackId) === trackId;
+                var nextRow = row.nextAll('.campwp-track-row').first();
+                if (nextRow.length === 0) {
+                    nextRow = row.prevAll('.campwp-track-row').first();
+                }
+
+                restoreTrackToExistingList(row, trackId);
+                row.remove();
+                resequenceOrders();
+
+                if ($('#campwp-track-list-body .campwp-track-row').length === 0) {
+                    $('#campwp-track-list-body').append('<tr id=\"campwp-track-list-empty\"><td colspan=\"5\"><em>No tracks assigned yet. Add audio files or existing tracks above.</em></td></tr>');
+                    clearEditor();
+                    return;
+                }
+
+                if (wasActive) {
+                    if (nextRow.length) {
+                        loadTrack(String(nextRow.data('track-id')));
+                    } else {
+                        clearEditor();
+                    }
+                } else {
+                    syncEditorToHidden();
+                }
             });
 
             $(document).on('input change', '[data-editor-field]', syncEditorToHidden);

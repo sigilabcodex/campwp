@@ -71,6 +71,7 @@ final class AlbumViewDataProvider
             'credits' => $credits !== '' ? $credits : $releaseDefaults['credits'],
             'cover_html' => get_the_post_thumbnail($album, 'large'),
             'tracks' => $this->getTrackRows($album->ID),
+            'unpublished_track_count' => $this->getUnpublishedAssignedTrackCount($album->ID),
             'bonus_assets' => $bonusAssets,
             'cta' => $this->downloadCtaPresenter->present(
                 $albumDownloadConfig,
@@ -127,6 +128,19 @@ private function getTrackRows(int $albumId): array
 
     return $rows;
 }
+
+    private function getUnpublishedAssignedTrackCount(int $albumId): int
+    {
+        $count = 0;
+
+        foreach ($this->relationshipService->getTracksForAlbum($albumId) as $trackPost) {
+            if ((string) $trackPost->post_status !== 'publish') {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
 
     /**
      * @param array{enabled: bool, mode: string, product_id: int} $downloadConfig

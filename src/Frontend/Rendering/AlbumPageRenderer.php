@@ -77,6 +77,9 @@ final class AlbumPageRenderer
 
                 <?php if ($data['tracks'] === []) : ?>
                     <p><?php esc_html_e('No published tracks are assigned to this release yet.', 'campwp'); ?></p>
+                    <?php if ((int) ($data['unpublished_track_count'] ?? 0) > 0) : ?>
+                        <p><?php echo esc_html(sprintf(_n('%d assigned track is still unpublished.', '%d assigned tracks are still unpublished.', (int) $data['unpublished_track_count'], 'campwp'), (int) $data['unpublished_track_count'])); ?></p>
+                    <?php endif; ?>
                 <?php else : ?>
                     <ol class="campwp-track-list-items">
                         <?php foreach ($data['tracks'] as $track) : ?>

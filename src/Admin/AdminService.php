@@ -175,11 +175,11 @@ final class AdminService
         echo '<div style="display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 12px;">';
         echo '<p><label><strong>' . esc_html__('Title', 'campwp') . '</strong><br /><input type="text" class="regular-text" data-editor-field="title" /></label></p>';
         echo '<p><label><strong>' . esc_html__('Track #', 'campwp') . '</strong><br /><input type="number" min="0" step="1" class="small-text" data-editor-field="track_number" /></label></p>';
-        echo '<p><label><strong>' . esc_html__('Subtitle', 'campwp') . '</strong><br /><input type="text" class="regular-text" data-editor-field="subtitle" /></label></p>';
-        echo '<p><label><strong>' . esc_html__('Duration', 'campwp') . '</strong><br /><input type="text" class="small-text" data-editor-field="duration" /></label></p>';
+        echo '<p><label><strong>' . esc_html__('Version / Mix Notes', 'campwp') . '</strong><br /><input type="text" class="regular-text" data-editor-field="subtitle" /></label><br /><span class="description">' . esc_html__('Stored in the existing subtitle field for compatibility.', 'campwp') . '</span></p>';
+        echo '<p><strong>' . esc_html__('Duration', 'campwp') . '</strong><br /><span class="campwp-editor-readonly-value" data-editor-display="duration">' . esc_html__('Not available', 'campwp') . '</span><br /><span class="description">' . esc_html__('Read-only. Duration is derived from audio metadata when available.', 'campwp') . '</span></p>';
         echo '<p><label><strong>' . esc_html__('Artist Override', 'campwp') . '</strong><br /><input type="text" class="regular-text" data-editor-field="artist_display_name" /></label></p>';
-        echo '<p><label><strong>' . esc_html__('Audio Attachment ID', 'campwp') . '</strong><br /><input type="number" min="0" step="1" class="small-text" data-editor-field="audio_attachment_id" /></label></p>';
         echo '<p style="grid-column:1 / -1;"><label><strong>' . esc_html__('Credits', 'campwp') . '</strong><br /><textarea rows="3" class="large-text" data-editor-field="credits"></textarea></label></p>';
+        echo '<p style="grid-column:1 / -1; padding-top:8px; margin-top:0; border-top:1px solid #dcdcde;"><label><strong>' . esc_html__('Audio Source Attachment ID (advanced)', 'campwp') . '</strong><br /><input type="number" min="0" step="1" class="small-text" data-editor-field="audio_attachment_id" /></label><br /><span class="description">' . esc_html__('Technical/internal field used to link this track to a Media Library audio attachment.', 'campwp') . '</span></p>';
         echo '</div>';
         echo '<p class="description" id="campwp-release-track-editor-effective"></p>';
         echo '</div>';
@@ -489,6 +489,11 @@ final class AdminService
                 return $('[data-editor-field="' + fieldName + '"]');
             }
 
+            function setDurationDisplay(value) {
+                var resolved = (value || '').toString();
+                $('[data-editor-display="duration"]').text(resolved ? resolved : 'Not available');
+            }
+
             function summarize(trackId) {
                 var number = hiddenField(trackId, 'track_number').val() || '';
                 var duration = hiddenField(trackId, 'duration').val() || '';
@@ -547,6 +552,7 @@ final class AdminService
                     var fieldName = $(this).data('editor-field');
                     $(this).val(hiddenField(trackId, fieldName).val() || '');
                 });
+                setDurationDisplay(hiddenField(trackId, 'duration').val() || '');
 
                 var heading = $('.campwp-track-title[data-track-id="' + trackId + '"]').first().text();
                 $('#campwp-release-track-editor-heading').text('Track Editor: ' + heading + ' (#' + trackId + ')');
@@ -599,6 +605,7 @@ final class AdminService
                 $('#campwp-release-track-editor-help').text('Select a track from the list above to edit its metadata.');
                 $('#campwp-release-track-editor-effective').text('');
                 $('.campwp-track-row').removeClass('campwp-track-row--active');
+                setDurationDisplay('');
                 $('[data-editor-field]').each(function() {
                     $(this).val('');
                 });

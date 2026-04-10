@@ -37,10 +37,17 @@ final class AudioUploadPolicyService
 
     /**
      * @param array<string,mixed> $data
+     * @param array<string,string>|null $mimes
      * @return array<string,mixed>
      */
-    public function normalizeAudioFiletype(array $data, string $file, string $filename, array $mimes): array
-    {
+    public function normalizeAudioFiletype(
+        array $data,
+        string $file,
+        string $filename,
+        ?array $mimes
+    ): array {
+        $mimes = $mimes ?? [];
+
         if (($data['ext'] ?? false) !== false && ($data['type'] ?? false) !== false) {
             return $data;
         }

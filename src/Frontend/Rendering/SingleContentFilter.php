@@ -19,6 +19,7 @@ final class SingleContentFilter
     public function register(): void
     {
         add_filter('the_content', [$this, 'filterContent']);
+        add_filter('post_thumbnail_html', [$this, 'filterAlbumFeaturedImage'], 10, 5);
     }
 
     public function filterContent(string $content): string
@@ -42,5 +43,21 @@ final class SingleContentFilter
         }
 
         return $content;
+    }
+
+    /**
+     * @param string|array<int, string> $size
+     */
+    public function filterAlbumFeaturedImage(string $html, int $postId, int $postThumbnailId, $size, string $attr): string
+    {
+        if (is_admin() || ! is_singular('campwp_album')) {
+            return $html;
+        }
+
+        if (get_queried_object_id() !== $postId) {
+            return $html;
+        }
+
+        return '';
     }
 }

@@ -44,15 +44,44 @@
   padding: 0;
 }
 
+.campwp-track-list-surface {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.campwp-track-list-summary {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  font-weight: 600;
+}
+
+.campwp-track-list-items .campwp-track-row:first-child {
+  border-top: 0;
+}
+
 .campwp-track-row {
   border-top: 1px solid rgba(0, 0, 0, 0.12);
-  padding: 1rem 0;
+  padding: 1rem;
 }
 
 .campwp-track-heading {
   display: flex;
   gap: 0.5rem;
   align-items: baseline;
+}
+
+@media (min-width: 860px) {
+  .campwp-track-row {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    align-items: start;
+  }
+}
+
+.campwp-track-row .campwp-cta {
+  margin-top: 0.65rem;
 }
 
 .campwp-track-secondary audio,

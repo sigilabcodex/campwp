@@ -74,57 +74,71 @@ final class AlbumPageRenderer
 
             <section class="campwp-track-list">
                 <h2><?php esc_html_e('Track list', 'campwp'); ?></h2>
-
-                <?php if ($data['tracks'] === []) : ?>
-                    <p><?php esc_html_e('No published tracks are assigned to this release yet.', 'campwp'); ?></p>
-                    <?php if ((int) ($data['unpublished_track_count'] ?? 0) > 0) : ?>
-                        <p><?php echo esc_html(sprintf(_n('%d assigned track is still unpublished.', '%d assigned tracks are still unpublished.', (int) $data['unpublished_track_count'], 'campwp'), (int) $data['unpublished_track_count'])); ?></p>
+                <div class="campwp-track-list-surface">
+                    <?php if ($data['tracks'] !== []) : ?>
+                        <p class="campwp-track-list-summary">
+                            <?php
+                            echo esc_html(
+                                sprintf(
+                                    _n('%d track', '%d tracks', count($data['tracks']), 'campwp'),
+                                    count($data['tracks'])
+                                )
+                            );
+                            ?>
+                        </p>
                     <?php endif; ?>
-                <?php else : ?>
-                    <ol class="campwp-track-list-items">
-                        <?php foreach ($data['tracks'] as $track) : ?>
-                            <li class="campwp-track-row" data-campwp-track-id="<?php echo esc_attr((string) $track['id']); ?>">
-                                <div class="campwp-track-primary">
-                                    <?php if ($track['artwork_html'] !== '') : ?>
-                                        <div class="campwp-track-artwork"><?php echo wp_kses_post((string) $track['artwork_html']); ?></div>
-                                    <?php endif; ?>
 
-                                    <div class="campwp-track-info">
-                                        <div class="campwp-track-heading">
-                                            <span class="campwp-track-number"><?php echo esc_html((string) $track['number']); ?>.</span>
-                                            <a class="campwp-track-link" href="<?php echo esc_url((string) $track['permalink']); ?>"><?php echo esc_html((string) $track['title']); ?></a>
-                                        </div>
-
-                                        <?php if ($track['subtitle'] !== '') : ?>
-                                            <p class="campwp-track-subtitle"><?php echo esc_html((string) $track['subtitle']); ?></p>
+                    <?php if ($data['tracks'] === []) : ?>
+                        <p><?php esc_html_e('No published tracks are assigned to this release yet.', 'campwp'); ?></p>
+                        <?php if ((int) ($data['unpublished_track_count'] ?? 0) > 0) : ?>
+                            <p><?php echo esc_html(sprintf(_n('%d assigned track is still unpublished.', '%d assigned tracks are still unpublished.', (int) $data['unpublished_track_count'], 'campwp'), (int) $data['unpublished_track_count'])); ?></p>
+                        <?php endif; ?>
+                    <?php else : ?>
+                        <ol class="campwp-track-list-items">
+                            <?php foreach ($data['tracks'] as $track) : ?>
+                                <li class="campwp-track-row" data-campwp-track-id="<?php echo esc_attr((string) $track['id']); ?>">
+                                    <div class="campwp-track-primary">
+                                        <?php if ($track['artwork_html'] !== '') : ?>
+                                            <div class="campwp-track-artwork"><?php echo wp_kses_post((string) $track['artwork_html']); ?></div>
                                         <?php endif; ?>
 
-                                        <p class="campwp-track-metadata">
-                                            <?php if ($track['artist_display'] !== '') : ?>
-                                                <span><strong><?php esc_html_e('Artist', 'campwp'); ?>:</strong> <?php echo esc_html((string) $track['artist_display']); ?></span>
+                                        <div class="campwp-track-info">
+                                            <div class="campwp-track-heading">
+                                                <span class="campwp-track-number"><?php echo esc_html((string) $track['number']); ?>.</span>
+                                                <a class="campwp-track-link" href="<?php echo esc_url((string) $track['permalink']); ?>"><?php echo esc_html((string) $track['title']); ?></a>
+                                            </div>
+
+                                            <?php if ($track['subtitle'] !== '') : ?>
+                                                <p class="campwp-track-subtitle"><?php echo esc_html((string) $track['subtitle']); ?></p>
                                             <?php endif; ?>
-                                            <?php if ($track['duration'] !== '') : ?>
-                                                <span><strong><?php esc_html_e('Duration', 'campwp'); ?>:</strong> <?php echo esc_html((string) $track['duration']); ?></span>
-                                            <?php endif; ?>
-                                        </p>
+
+                                            <p class="campwp-track-metadata">
+                                                <?php if ($track['artist_display'] !== '') : ?>
+                                                    <span><strong><?php esc_html_e('Artist', 'campwp'); ?>:</strong> <?php echo esc_html((string) $track['artist_display']); ?></span>
+                                                <?php endif; ?>
+                                                <?php if ($track['duration'] !== '') : ?>
+                                                    <span><strong><?php esc_html_e('Duration', 'campwp'); ?>:</strong> <?php echo esc_html((string) $track['duration']); ?></span>
+                                                <?php endif; ?>
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="campwp-track-secondary">
-                                    <?php if ($track['audio'] instanceof TrackAudioFile) : ?>
-                                        <audio controls preload="none">
-                                            <source src="<?php echo esc_url($track['audio']->getUrl()); ?>" type="<?php echo esc_attr($track['audio']->getMimeType()); ?>" />
-                                        </audio>
-                                    <?php else : ?>
-                                        <p class="campwp-empty-state"><?php esc_html_e('No audio attached for this track yet.', 'campwp'); ?></p>
-                                    <?php endif; ?>
+                                    <div class="campwp-track-secondary">
+                                        <?php if ($track['audio'] instanceof TrackAudioFile) : ?>
+                                            <audio controls preload="none">
+                                                <source src="<?php echo esc_url($track['audio']->getUrl()); ?>" type="<?php echo esc_attr($track['audio']->getMimeType()); ?>" />
+                                            </audio>
+                                        <?php else : ?>
+                                            <p class="campwp-empty-state"><?php esc_html_e('No audio attached for this track yet.', 'campwp'); ?></p>
+                                        <?php endif; ?>
 
-                                    <?php $this->renderCta((array) $track['cta'], __('Track download', 'campwp')); ?>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ol>
-                <?php endif; ?>
+                                        <?php $this->renderCta((array) $track['cta'], __('Track download', 'campwp')); ?>
+                                    </div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ol>
+                    <?php endif; ?>
+                </div>
             </section>
 
             <section class="campwp-bonus-assets">

@@ -42,5 +42,15 @@ final class FrontendService
             [],
             defined('CAMPWP_VERSION') ? CAMPWP_VERSION : '0.1.0'
         );
+
+        if (is_singular('campwp_album')) {
+            wp_enqueue_script(
+                'campwp-album-player',
+                CAMPWP_URL . 'assets/js/campwp-album-player.js',
+                [],
+                defined('CAMPWP_VERSION') ? CAMPWP_VERSION : '0.1.0',
+                true
+            );
+        }
     }
 }

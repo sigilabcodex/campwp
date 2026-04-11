@@ -69,7 +69,7 @@ final class AlbumViewDataProvider
             'label_name' => $labelName !== '' ? $labelName : $releaseDefaults['label_name'],
             'release_notes' => $releaseNotes,
             'credits' => $credits !== '' ? $credits : $releaseDefaults['credits'],
-            'cover_html' => get_the_post_thumbnail($album, 'large'),
+            'cover_html' => $this->getAlbumCoverHtml($album->ID),
             'tracks' => $this->getTrackRows($album->ID),
             'unpublished_track_count' => $this->getUnpublishedAssignedTrackCount($album->ID),
             'bonus_assets' => $bonusAssets,
@@ -84,6 +84,17 @@ final class AlbumViewDataProvider
         return apply_filters('campwp_album_view_data', $data, $album);
     }
 
+    private function getAlbumCoverHtml(int $albumId): string
+    {
+        $coverId = get_post_thumbnail_id($albumId);
+        if ($coverId <= 0) {
+            return '';
+        }
+
+        $coverHtml = wp_get_attachment_image($coverId, 'large');
+
+        return is_string($coverHtml) ? $coverHtml : '';
+    }
 
 /**
  * @return list<array<string, mixed>>

@@ -35,8 +35,7 @@ final class AlbumPlayerRenderer
                         <?php $this->renderIcon('previous'); ?>
                     </button>
                     <button type="button" class="campwp-player-button" data-campwp-action="toggle" aria-label="<?php esc_attr_e('Play', 'campwp'); ?>" data-campwp-toggle-state="paused">
-                        <span class="campwp-player-icon campwp-player-icon-play" data-campwp-icon="play" aria-hidden="true"><?php $this->renderIcon('play'); ?></span>
-                        <span class="campwp-player-icon campwp-player-icon-pause" data-campwp-icon="pause" aria-hidden="true"><?php $this->renderIcon('pause'); ?></span>
+                        <span class="campwp-player-icon" data-campwp-icon aria-hidden="true"><?php $this->renderIcon('play'); ?></span>
                     </button>
                     <button type="button" class="campwp-player-button" data-campwp-action="next" aria-label="<?php esc_attr_e('Next track', 'campwp'); ?>">
                         <?php $this->renderIcon('next'); ?>
@@ -79,10 +78,10 @@ final class AlbumPlayerRenderer
     private function renderIcon(string $name): void
     {
         $icons = [
-            'previous' => '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path fill="currentColor" d="M7 5a1 1 0 0 1 1 1v12a1 1 0 1 1-2 0V6a1 1 0 0 1 1-1Zm11.5 1.8v10.4a1 1 0 0 1-1.52.86l-7.8-5.2a1 1 0 0 1 0-1.66l7.8-5.2a1 1 0 0 1 1.52.8Z"/></svg>',
-            'play' => '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path fill="currentColor" d="M8 5.8a1 1 0 0 1 1.5-.86l9 6.2a1 1 0 0 1 0 1.72l-9 6.2A1 1 0 0 1 8 18.2V5.8Z"/></svg>',
-            'pause' => '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path fill="currentColor" d="M8 5a1 1 0 0 1 1 1v12a1 1 0 1 1-2 0V6a1 1 0 0 1 1-1Zm8 0a1 1 0 0 1 1 1v12a1 1 0 1 1-2 0V6a1 1 0 0 1 1-1Z"/></svg>',
-            'next' => '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path fill="currentColor" d="M17 5a1 1 0 0 1 1 1v12a1 1 0 1 1-2 0V6a1 1 0 0 1 1-1ZM5.5 6.8v10.4a1 1 0 0 0 1.52.86l7.8-5.2a1 1 0 0 0 0-1.66l-7.8-5.2a1 1 0 0 0-1.52.8Z"/></svg>',
+            'previous' => '<svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true"><rect x="4" y="4" width="2" height="16" fill="currentColor"></rect><polygon points="20,4 8,12 20,20" fill="currentColor"></polygon></svg>',
+            'play' => '<svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true"><polygon points="6,4 20,12 6,20" fill="currentColor"></polygon></svg>',
+            'pause' => '<svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true"><rect x="6" y="4" width="4" height="16" fill="currentColor"></rect><rect x="14" y="4" width="4" height="16" fill="currentColor"></rect></svg>',
+            'next' => '<svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true"><rect x="18" y="4" width="2" height="16" fill="currentColor"></rect><polygon points="4,4 16,12 4,20" fill="currentColor"></polygon></svg>',
         ];
 
         echo wp_kses(
@@ -93,9 +92,16 @@ final class AlbumPlayerRenderer
                     'focusable' => true,
                     'aria-hidden' => true,
                 ],
-                'path' => [
+                'rect' => [
+                    'x' => true,
+                    'y' => true,
+                    'width' => true,
+                    'height' => true,
                     'fill' => true,
-                    'd' => true,
+                ],
+                'polygon' => [
+                    'points' => true,
+                    'fill' => true,
                 ],
             ]
         );

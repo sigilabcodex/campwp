@@ -22,6 +22,17 @@
     var toggleBtn = player.querySelector('[data-campwp-action="toggle"]');
     var prevBtn = player.querySelector('[data-campwp-action="prev"]');
     var nextBtn = player.querySelector('[data-campwp-action="next"]');
+    var toggleIcon = toggleBtn
+      ? toggleBtn.querySelector("[data-campwp-icon]")
+      : null;
+
+    var icons = {
+      play:
+        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><polygon points="6,4 20,12 6,20" fill="currentColor"></polygon></svg>',
+      pause:
+        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="4" width="4" height="16" fill="currentColor"></rect><rect x="14" y="4" width="4" height="16" fill="currentColor"></rect></svg>',
+    };
+
     var tracks = Array.prototype.slice.call(
       container.querySelectorAll(".campwp-track-row")
     );
@@ -32,6 +43,9 @@
       if (!toggleBtn) return;
       toggleBtn.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
       toggleBtn.dataset.campwpToggleState = isPlaying ? "playing" : "paused";
+      if (toggleIcon) {
+        toggleIcon.innerHTML = isPlaying ? icons.pause : icons.play;
+      }
     }
 
     var activeIndex = tracks.findIndex(function (row) {

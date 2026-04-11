@@ -30,7 +30,6 @@
 
     function setToggleState(isPlaying) {
       if (!toggleBtn) return;
-      toggleBtn.textContent = isPlaying ? "❚❚" : "▶";
       toggleBtn.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
       toggleBtn.dataset.campwpToggleState = isPlaying ? "playing" : "paused";
     }

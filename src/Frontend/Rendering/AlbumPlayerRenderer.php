@@ -31,9 +31,9 @@ final class AlbumPlayerRenderer
             <h2><?php esc_html_e('Player', 'campwp'); ?></h2>
             <div class="campwp-album-player-surface">
                 <div class="campwp-album-player-controls">
-                    <button type="button" class="campwp-player-button" data-campwp-action="prev"><?php esc_html_e('Prev', 'campwp'); ?></button>
-                    <button type="button" class="campwp-player-button" data-campwp-action="toggle"><?php esc_html_e('Play', 'campwp'); ?></button>
-                    <button type="button" class="campwp-player-button" data-campwp-action="next"><?php esc_html_e('Next', 'campwp'); ?></button>
+                    <button type="button" class="campwp-player-button" data-campwp-action="prev" aria-label="<?php esc_attr_e('Previous track', 'campwp'); ?>">‹‹</button>
+                    <button type="button" class="campwp-player-button" data-campwp-action="toggle" aria-label="<?php esc_attr_e('Play', 'campwp'); ?>" data-campwp-toggle-state="paused">▶</button>
+                    <button type="button" class="campwp-player-button" data-campwp-action="next" aria-label="<?php esc_attr_e('Next track', 'campwp'); ?>">››</button>
                 </div>
                 <p class="campwp-album-player-track">
                     <strong><?php esc_html_e('Now playing', 'campwp'); ?>:</strong>
@@ -69,4 +69,3 @@ final class AlbumPlayerRenderer
         return null;
     }
 }
-

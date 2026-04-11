@@ -26,6 +26,20 @@
   display: block;
 }
 
+.campwp-release-cover {
+  margin: 0;
+}
+
+.campwp-release-cover-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: block;
+  cursor: zoom-in;
+}
+
 .campwp-release-meta,
 .campwp-track-meta {
   list-style: none;
@@ -71,6 +85,8 @@
   border: 1px solid currentColor;
   background: #fff;
   padding: 0.35rem 0.6rem;
+  font: inherit;
+  line-height: 1;
 }
 
 .campwp-album-player-track {
@@ -108,6 +124,12 @@
   display: flex;
   gap: 0.5rem;
   align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.campwp-track-play-hint {
+  font-size: 0.9em;
+  opacity: 0.75;
 }
 
 .campwp-track-play-toggle {
@@ -173,4 +195,69 @@
 .campwp-bonus-row {
   border-top: 1px dashed rgba(0, 0, 0, 0.15);
   padding: 0.75rem 0;
+}
+
+.campwp-cover-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+}
+
+.campwp-cover-lightbox[hidden] {
+  display: none;
+}
+
+.campwp-cover-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.8);
+  cursor: pointer;
+}
+
+.campwp-cover-lightbox-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 960px);
+  max-height: 92vh;
+  overflow: auto;
+  background: #111;
+  padding: 0.75rem;
+}
+
+.campwp-cover-lightbox-image {
+  margin: 0;
+}
+
+.campwp-cover-lightbox-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.campwp-cover-lightbox-close {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.95);
+  font: inherit;
+  cursor: pointer;
+}
+
+body.campwp-lightbox-open {
+  overflow: hidden;
+}
+
+/* Fallback theme-level cleanup when title/meta cannot be intercepted by hooks. */
+.campwp-album-singular .entry-title,
+.campwp-album-singular .wp-block-post-title,
+.campwp-album-singular .entry-meta,
+.campwp-album-singular .byline,
+.campwp-album-singular .posted-on,
+.campwp-album-singular .wp-block-post-author-name,
+.campwp-album-singular .wp-block-post-date {
+  display: none;
 }

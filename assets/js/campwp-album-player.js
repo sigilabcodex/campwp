@@ -28,6 +28,13 @@
 
     if (!audio || tracks.length === 0) return;
 
+    function setToggleState(isPlaying) {
+      if (!toggleBtn) return;
+      toggleBtn.textContent = isPlaying ? "❚❚" : "▶";
+      toggleBtn.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
+      toggleBtn.dataset.campwpToggleState = isPlaying ? "playing" : "paused";
+    }
+
     var activeIndex = tracks.findIndex(function (row) {
       return row.dataset.campwpAudioSrc;
     });
@@ -57,7 +64,7 @@
       if (!src) {
         audio.removeAttribute("src");
         audio.load();
-        if (toggleBtn) toggleBtn.textContent = "Play";
+        setToggleState(false);
         return;
       }
 
@@ -114,11 +121,11 @@
     }
 
     audio.addEventListener("play", function () {
-      if (toggleBtn) toggleBtn.textContent = "Pause";
+      setToggleState(true);
     });
 
     audio.addEventListener("pause", function () {
-      if (toggleBtn) toggleBtn.textContent = "Play";
+      setToggleState(false);
     });
 
     audio.addEventListener("timeupdate", function () {
@@ -148,11 +155,43 @@
     }
 
     setTrack(activeIndex, false);
+    setToggleState(false);
+  }
+
+  function initCoverLightbox(container) {
+    var openButton = container.querySelector("[data-campwp-cover-open]");
+    var lightbox = container.querySelector("[data-campwp-cover-lightbox]");
+    if (!openButton || !lightbox) return;
+
+    var closeButtons = lightbox.querySelectorAll("[data-campwp-cover-close]");
+
+    function closeLightbox() {
+      lightbox.hidden = true;
+      document.body.classList.remove("campwp-lightbox-open");
+    }
+
+    function openLightbox() {
+      lightbox.hidden = false;
+      document.body.classList.add("campwp-lightbox-open");
+    }
+
+    openButton.addEventListener("click", openLightbox);
+    closeButtons.forEach(function (button) {
+      button.addEventListener("click", closeLightbox);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !lightbox.hidden) {
+        closeLightbox();
+      }
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {
     var albumContainers = document.querySelectorAll(".campwp-album");
-    albumContainers.forEach(initAlbumPlayer);
+    albumContainers.forEach(function (container) {
+      initAlbumPlayer(container);
+      initCoverLightbox(container);
+    });
   });
 })();
-

@@ -41,7 +41,7 @@ final class DownloadResolver
             return null;
         }
 
-        $referenceId = $this->trackAudioResolver->getTrackAudioReferenceId($trackId);
+        $referenceId = $this->trackAudioResolver->getTrackDownloadReferenceId($trackId);
 
         if ($referenceId <= 0) {
             return null;

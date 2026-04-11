@@ -42,18 +42,10 @@ final class AlbumPageRenderer
                             <p class="campwp-release-subtitle"><?php echo esc_html((string) $data['subtitle']); ?></p>
                         <?php endif; ?>
 
-                        <ul class="campwp-release-meta">
-                            <?php if ($data['artist_display'] !== '') : ?>
-                                <li><strong><?php esc_html_e('Artist', 'campwp'); ?>:</strong> <?php echo esc_html((string) $data['artist_display']); ?></li>
-                            <?php endif; ?>
-                            <li><strong><?php esc_html_e('Type', 'campwp'); ?>:</strong> <?php echo esc_html((string) $data['release_type_label']); ?></li>
-                            <?php if ($data['release_date'] !== '') : ?>
-                                <li><strong><?php esc_html_e('Release date', 'campwp'); ?>:</strong> <?php echo esc_html((string) $data['release_date']); ?></li>
-                            <?php endif; ?>
-                            <?php if ($data['label_name'] !== '') : ?>
-                                <li><strong><?php esc_html_e('Label', 'campwp'); ?>:</strong> <?php echo esc_html((string) $data['label_name']); ?></li>
-                            <?php endif; ?>
-                        </ul>
+                        <?php $releaseIdentity = $this->buildReleaseIdentityLine((string) $data['release_type_label'], (string) $data['release_date'], (string) $data['label_name']); ?>
+                        <?php if ($releaseIdentity !== '') : ?>
+                            <p class="campwp-release-meta-line"><?php echo esc_html($releaseIdentity); ?></p>
+                        <?php endif; ?>
 
                         <?php $this->renderCta((array) $data['cta'], __('Album download', 'campwp'), 'release'); ?>
                     </div>
@@ -104,9 +96,15 @@ final class AlbumPageRenderer
                                             <?php endif; ?>
 
                                             <div class="campwp-track-info">
+                                                <?php
+                                                $trackTitle = trim((string) $track['title']);
+                                                if ($trackTitle === '') {
+                                                    $trackTitle = __('Untitled track', 'campwp');
+                                                }
+                                                $trackIdentity = $this->buildArtistTitleHeading((string) $track['artist_display'], $trackTitle);
+                                                ?>
                                                 <div class="campwp-track-heading">
-                                                    <span class="campwp-track-number"><?php echo esc_html((string) $track['number']); ?>.</span>
-                                                    <span class="campwp-track-link"><?php echo esc_html($this->buildArtistTitleHeading((string) $track['artist_display'], (string) $track['title'])); ?></span>
+                                                    <span class="campwp-track-link"><?php echo esc_html(sprintf('%d. %s', (int) $track['number'], $trackIdentity)); ?></span>
                                                     <span class="campwp-track-play-hint"><?php esc_html_e('(click to play)', 'campwp'); ?></span>
                                                 </div>
 
@@ -270,6 +268,42 @@ final class AlbumPageRenderer
         }
 
         return sprintf('%s — %s', $artist, $title);
+    }
+
+    private function buildReleaseIdentityLine(string $releaseTypeLabel, string $releaseDate, string $labelName): string
+    {
+        $parts = [];
+
+        $type = trim($releaseTypeLabel);
+        if ($type !== '') {
+            $parts[] = $type;
+        }
+
+        $year = $this->extractReleaseYear($releaseDate);
+        if ($year !== '') {
+            $parts[] = $year;
+        }
+
+        $label = trim($labelName);
+        if ($label !== '') {
+            $parts[] = $label;
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    private function extractReleaseYear(string $releaseDate): string
+    {
+        if (preg_match('/\b(\d{4})\b/', $releaseDate, $matches) === 1) {
+            return $matches[1];
+        }
+
+        $timestamp = strtotime($releaseDate);
+        if ($timestamp === false) {
+            return '';
+        }
+
+        return gmdate('Y', $timestamp);
     }
 
     private function normalizeCtaMessage(string $message, string $state, string $context): string

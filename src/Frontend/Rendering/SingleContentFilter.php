@@ -21,16 +21,21 @@ final class SingleContentFilter
         add_filter('the_content', [$this, 'filterContent']);
         add_filter('post_thumbnail_html', [$this, 'filterAlbumFeaturedImage'], 10, 5);
         add_filter('the_title', [$this, 'filterAlbumThemeTitle'], 20, 2);
+        add_filter('get_the_title', [$this, 'filterAlbumThemeGetTitle'], 20, 2);
         add_filter('render_block_core/post-title', [$this, 'filterAlbumThemeBlockTitle'], 20, 2);
         add_filter('render_block_core/post-author-name', [$this, 'filterAlbumThemeBlockMeta'], 20, 2);
         add_filter('render_block_core/post-author-biography', [$this, 'filterAlbumThemeBlockMeta'], 20, 2);
         add_filter('render_block_core/post-author', [$this, 'filterAlbumThemeBlockMeta'], 20, 2);
         add_filter('render_block_core/post-date', [$this, 'filterAlbumThemeBlockMeta'], 20, 2);
         add_filter('the_author', [$this, 'filterAlbumThemeTextMeta']);
+        add_filter('the_author_posts_link', [$this, 'filterAlbumThemeTextMeta']);
+        add_filter('get_the_author', [$this, 'filterAlbumThemeTextMeta']);
         add_filter('get_the_author_display_name', [$this, 'filterAlbumThemeTextMeta']);
         add_filter('the_date', [$this, 'filterAlbumThemeTextMeta']);
         add_filter('get_the_date', [$this, 'filterAlbumThemeTextMeta']);
         add_filter('get_the_modified_date', [$this, 'filterAlbumThemeTextMeta']);
+        add_filter('the_time', [$this, 'filterAlbumThemeTextMeta']);
+        add_filter('get_the_time', [$this, 'filterAlbumThemeTextMeta']);
         add_filter('body_class', [$this, 'addAlbumBodyClass']);
     }
 
@@ -69,6 +74,23 @@ final class SingleContentFilter
 
         if (get_queried_object_id() !== $postId) {
             return $html;
+        }
+
+        return '';
+    }
+
+    /**
+     * @param int|\WP_Post|null $post
+     */
+    public function filterAlbumThemeGetTitle(string $title, int $postId = 0): string
+    {
+        if (! $this->shouldSuppressThemePresentationForAlbum()) {
+            return $title;
+        }
+
+        $resolvedId = $postId > 0 ? $postId : get_the_ID();
+        if ((int) $resolvedId !== get_queried_object_id()) {
+            return $title;
         }
 
         return '';

@@ -101,11 +101,6 @@
   display: block;
 }
 
-[data-campwp-toggle-state="paused"] .campwp-player-icon-pause,
-[data-campwp-toggle-state="playing"] .campwp-player-icon-play {
-  display: none;
-}
-
 .campwp-album-player-track {
   margin: 0.8rem 0 0.45rem;
 }
@@ -132,6 +127,12 @@
 
 .campwp-release-subtitle {
   margin-top: 0;
+}
+
+.campwp-release-meta-line {
+  margin: 0.3rem 0 0;
+  opacity: 0.8;
+  font-size: 0.95rem;
 }
 
 .campwp-track-list-items .campwp-track-row:first-child {
@@ -287,6 +288,10 @@ body.campwp-lightbox-open {
 .campwp-album-singular .author,
 .campwp-album-singular .posted-by,
 .campwp-album-singular .posted-on,
+.campwp-album-singular .post-author,
+.campwp-album-singular .post-date,
+.campwp-album-singular .meta-author,
+.campwp-album-singular .meta-date,
 .campwp-album-singular .wp-block-post-author-name,
 .campwp-album-singular .wp-block-post-author,
 .campwp-album-singular .wp-block-post-date {

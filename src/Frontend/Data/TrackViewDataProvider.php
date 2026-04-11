@@ -45,7 +45,8 @@ final class TrackViewDataProvider
         $trackCredits = $this->getMetaString($track->ID, MetadataKeys::TRACK_CREDITS);
         $defaults = $this->inheritance->getReleaseDefaults($album instanceof \WP_Post ? $album->ID : 0);
 
-        $audio = $this->trackAudioResolver->getTrackAudioFile($track->ID);
+        $audio = $this->trackAudioResolver->getTrackPlaybackFile($track->ID);
+        $downloadFile = $this->trackAudioResolver->getTrackDownloadFile($track->ID);
         $downloadConfig = $this->entitlementService->getTrackDownloadConfig($track->ID);
 
         $data = [
@@ -61,7 +62,7 @@ final class TrackViewDataProvider
             'cta' => $this->downloadCtaPresenter->present(
                 $downloadConfig,
                 $this->downloadController->getTrackDownloadUrl($track->ID),
-                $audio !== null,
+                $downloadFile !== null,
                 is_string($trackPermalink) ? $trackPermalink : ''
             ),
             'artwork_html' => $this->getArtworkHtml($track->ID, $artworkId, $album instanceof \WP_Post ? $album->ID : 0),

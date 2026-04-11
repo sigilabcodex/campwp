@@ -114,7 +114,8 @@ private function getTrackRows(int $albumId): array
         $trackDuration = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_DURATION);
         $trackNumberMeta = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_NUMBER, true));
         $trackArtworkId = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_ARTWORK_ID, true));
-        $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackPost->ID);
+        $audioFile = $this->trackAudioResolver->getTrackPlaybackFile($trackPost->ID);
+        $downloadFile = $this->trackAudioResolver->getTrackDownloadFile($trackPost->ID);
         $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
         $trackPermalink = get_permalink($trackPost);
 
@@ -131,7 +132,7 @@ private function getTrackRows(int $albumId): array
             'cta' => $this->downloadCtaPresenter->present(
                 $downloadConfig,
                 $this->downloadController->getTrackDownloadUrl($trackPost->ID),
-                $audioFile !== null,
+                $downloadFile !== null,
                 is_string($trackPermalink) ? $trackPermalink : ''
             ),
         ];

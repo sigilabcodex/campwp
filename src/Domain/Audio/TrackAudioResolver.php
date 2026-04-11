@@ -17,21 +17,73 @@ final class TrackAudioResolver
         $this->storageProvider = $storageProvider;
     }
 
-    public function getTrackAudioReferenceId(int $trackId): int
+    public function getTrackPlaybackReferenceId(int $trackId): int
+    {
+        $streamingId = max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID, true));
+        if ($streamingId > 0) {
+            return $streamingId;
+        }
+
+        $mp3Id = max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID, true));
+        if ($mp3Id > 0) {
+            return $mp3Id;
+        }
+
+        $oggId = max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID, true));
+        if ($oggId > 0) {
+            return $oggId;
+        }
+
+        return $this->getTrackAudioReferenceId($trackId);
+    }
+
+    public function getTrackDownloadReferenceId(int $trackId): int
     {
         $sourceId = max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, true));
-
         if ($sourceId > 0) {
             return $sourceId;
+        }
+
+        $mp3Id = max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID, true));
+        if ($mp3Id > 0) {
+            return $mp3Id;
+        }
+
+        $oggId = max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID, true));
+        if ($oggId > 0) {
+            return $oggId;
+        }
+
+        $streamingId = max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID, true));
+        if ($streamingId > 0) {
+            return $streamingId;
         }
 
         return max(0, (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, true));
     }
 
+    public function getTrackAudioReferenceId(int $trackId): int
+    {
+        return $this->getTrackDownloadReferenceId($trackId);
+    }
+
     public function getTrackAudioFile(int $trackId): ?TrackAudioFile
     {
-        $referenceId = $this->getTrackAudioReferenceId($trackId);
+        return $this->resolveTrackAudioFileFromReferenceId($this->getTrackAudioReferenceId($trackId));
+    }
 
+    public function getTrackPlaybackFile(int $trackId): ?TrackAudioFile
+    {
+        return $this->resolveTrackAudioFileFromReferenceId($this->getTrackPlaybackReferenceId($trackId));
+    }
+
+    public function getTrackDownloadFile(int $trackId): ?TrackAudioFile
+    {
+        return $this->resolveTrackAudioFileFromReferenceId($this->getTrackDownloadReferenceId($trackId));
+    }
+
+    private function resolveTrackAudioFileFromReferenceId(int $referenceId): ?TrackAudioFile
+    {
         if ($referenceId <= 0) {
             return null;
         }

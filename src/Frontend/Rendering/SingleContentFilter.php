@@ -47,8 +47,9 @@ final class SingleContentFilter
 
     /**
      * @param string|array<int, string> $size
+     * @param string|array<string, string> $attr
      */
-    public function filterAlbumFeaturedImage(string $html, int $postId, int $postThumbnailId, $size, string $attr): string
+    public function filterAlbumFeaturedImage(string $html, int $postId, int $postThumbnailId, $size, $attr): string
     {
         if (is_admin() || ! is_singular('campwp_album')) {
             return $html;

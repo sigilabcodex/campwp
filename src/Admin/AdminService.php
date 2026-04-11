@@ -273,6 +273,10 @@ final class AdminService
         }
 
         $this->albumTrackRelationships->saveAlbumTrackAssignments($postId, $mergedIds, $rawOrders);
+
+        if (get_post_status($postId) === 'publish') {
+            $this->publishAssignedUnpublishedTracksForAlbum($postId);
+        }
     }
 
     public function ajaxAddReleaseAudioTracks(): void
@@ -361,12 +365,19 @@ final class AdminService
             return;
         }
 
-        if ($newStatus !== 'publish' || $oldStatus === 'publish') {
+        if ($newStatus !== 'publish') {
             return;
         }
 
-        foreach ($this->albumTrackRelationships->getTracksForAlbum((int) $post->ID) as $trackPost) {
-            if ((string) $trackPost->post_status === 'publish') {
+        $this->publishAssignedUnpublishedTracksForAlbum((int) $post->ID);
+    }
+
+    private function publishAssignedUnpublishedTracksForAlbum(int $albumId): void
+    {
+        foreach ($this->albumTrackRelationships->getTracksForAlbum($albumId) as $trackPost) {
+            $status = (string) $trackPost->post_status;
+
+            if (! in_array($status, ['draft', 'pending', 'private', 'future'], true)) {
                 continue;
             }
 

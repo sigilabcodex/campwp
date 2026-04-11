@@ -21,6 +21,7 @@ final class AlbumPageRenderer
     public function render(\WP_Post $album, string $content): string
     {
         $data = $this->dataProvider->getAlbumViewData($album);
+        $heroTitle = $this->buildArtistTitleHeading((string) $data['artist_display'], (string) $data['title']);
 
         ob_start();
         ?>
@@ -36,7 +37,7 @@ final class AlbumPageRenderer
                     <?php endif; ?>
 
                     <div class="campwp-release-summary">
-                        <h1 class="campwp-release-title"><?php echo esc_html((string) $data['title']); ?></h1>
+                        <h1 class="campwp-release-title"><?php echo esc_html($heroTitle); ?></h1>
                         <?php if ($data['subtitle'] !== '') : ?>
                             <p class="campwp-release-subtitle"><?php echo esc_html((string) $data['subtitle']); ?></p>
                         <?php endif; ?>
@@ -64,7 +65,7 @@ final class AlbumPageRenderer
             <?php endif; ?>
 
             <section class="campwp-track-list">
-                <h2><?php esc_html_e('Track list', 'campwp'); ?></h2>
+                <h2><?php esc_html_e('Tracklist', 'campwp'); ?></h2>
                 <div class="campwp-track-list-surface">
                     <?php if ($data['tracks'] !== []) : ?>
                         <p class="campwp-track-list-summary">
@@ -105,7 +106,7 @@ final class AlbumPageRenderer
                                             <div class="campwp-track-info">
                                                 <div class="campwp-track-heading">
                                                     <span class="campwp-track-number"><?php echo esc_html((string) $track['number']); ?>.</span>
-                                                    <span class="campwp-track-link"><?php echo esc_html((string) $track['title']); ?></span>
+                                                    <span class="campwp-track-link"><?php echo esc_html($this->buildArtistTitleHeading((string) $track['artist_display'], (string) $track['title'])); ?></span>
                                                     <span class="campwp-track-play-hint"><?php esc_html_e('(click to play)', 'campwp'); ?></span>
                                                 </div>
 
@@ -114,9 +115,6 @@ final class AlbumPageRenderer
                                                 <?php endif; ?>
 
                                                 <p class="campwp-track-metadata">
-                                                    <?php if ($track['artist_display'] !== '') : ?>
-                                                        <span><strong><?php esc_html_e('Artist', 'campwp'); ?>:</strong> <?php echo esc_html((string) $track['artist_display']); ?></span>
-                                                    <?php endif; ?>
                                                     <?php if ($track['duration'] !== '') : ?>
                                                         <span><strong><?php esc_html_e('Duration', 'campwp'); ?>:</strong> <?php echo esc_html((string) $track['duration']); ?></span>
                                                     <?php endif; ?>
@@ -146,14 +144,14 @@ final class AlbumPageRenderer
 
             <?php if ($content !== '') : ?>
                 <section class="campwp-release-description">
-                    <h2><?php esc_html_e('About this release', 'campwp'); ?></h2>
+                    <h2><?php esc_html_e('About', 'campwp'); ?></h2>
                     <?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </section>
             <?php endif; ?>
 
             <?php if ($data['release_notes'] !== '' || $data['credits'] !== '') : ?>
                 <section class="campwp-release-notes">
-                    <h2><?php esc_html_e('Notes & credits', 'campwp'); ?></h2>
+                    <h2><?php esc_html_e('Notes', 'campwp'); ?></h2>
                     <?php if ($data['release_notes'] !== '') : ?>
                         <p><?php echo nl2br(esc_html((string) $data['release_notes'])); ?></p>
                     <?php endif; ?>
@@ -164,7 +162,7 @@ final class AlbumPageRenderer
             <?php endif; ?>
 
             <section class="campwp-bonus-assets">
-                <h2><?php esc_html_e('Bonus attachments', 'campwp'); ?></h2>
+                <h2><?php esc_html_e('Bonus media', 'campwp'); ?></h2>
                 <?php if ($data['bonus_assets'] === []) : ?>
                     <p class="campwp-empty-state"><?php esc_html_e('No bonus attachments are available for this release.', 'campwp'); ?></p>
                 <?php else : ?>
@@ -242,7 +240,7 @@ final class AlbumPageRenderer
     private function normalizeCtaLabel(string $label, string $state, string $context): string
     {
         if ($context === 'release' && $state === 'unavailable') {
-            return __('Full album download not available', 'campwp');
+            return __('Full album download not available yet', 'campwp');
         }
 
         if ($context === 'track') {
@@ -256,6 +254,22 @@ final class AlbumPageRenderer
         }
 
         return $label;
+    }
+
+    private function buildArtistTitleHeading(string $artist, string $title): string
+    {
+        $artist = trim($artist);
+        $title = trim($title);
+
+        if ($artist === '') {
+            return $title;
+        }
+
+        if ($title === '') {
+            return $artist;
+        }
+
+        return sprintf('%s — %s', $artist, $title);
     }
 
     private function normalizeCtaMessage(string $message, string $state, string $context): string

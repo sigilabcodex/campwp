@@ -23,7 +23,14 @@ final class SingleContentFilter
         add_filter('the_title', [$this, 'filterAlbumThemeTitle'], 20, 2);
         add_filter('render_block_core/post-title', [$this, 'filterAlbumThemeBlockTitle'], 20, 2);
         add_filter('render_block_core/post-author-name', [$this, 'filterAlbumThemeBlockMeta'], 20, 2);
+        add_filter('render_block_core/post-author-biography', [$this, 'filterAlbumThemeBlockMeta'], 20, 2);
+        add_filter('render_block_core/post-author', [$this, 'filterAlbumThemeBlockMeta'], 20, 2);
         add_filter('render_block_core/post-date', [$this, 'filterAlbumThemeBlockMeta'], 20, 2);
+        add_filter('the_author', [$this, 'filterAlbumThemeTextMeta']);
+        add_filter('get_the_author_display_name', [$this, 'filterAlbumThemeTextMeta']);
+        add_filter('the_date', [$this, 'filterAlbumThemeTextMeta']);
+        add_filter('get_the_date', [$this, 'filterAlbumThemeTextMeta']);
+        add_filter('get_the_modified_date', [$this, 'filterAlbumThemeTextMeta']);
         add_filter('body_class', [$this, 'addAlbumBodyClass']);
     }
 
@@ -102,6 +109,15 @@ final class SingleContentFilter
     {
         if (! $this->shouldSuppressThemePresentationForAlbum()) {
             return $blockContent;
+        }
+
+        return '';
+    }
+
+    public function filterAlbumThemeTextMeta(string $value): string
+    {
+        if (! $this->shouldSuppressThemePresentationForAlbum()) {
+            return $value;
         }
 
         return '';

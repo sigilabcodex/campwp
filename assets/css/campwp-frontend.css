@@ -82,11 +82,28 @@
 }
 
 .campwp-player-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
   border: 1px solid currentColor;
   background: #fff;
-  padding: 0.35rem 0.6rem;
+  padding: 0.35rem;
   font: inherit;
   line-height: 1;
+}
+
+.campwp-player-icon,
+.campwp-player-button svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: block;
+}
+
+[data-campwp-toggle-state="paused"] .campwp-player-icon-pause,
+[data-campwp-toggle-state="playing"] .campwp-player-icon-play {
+  display: none;
 }
 
 .campwp-album-player-track {
@@ -105,6 +122,16 @@
   padding: 0.75rem 1rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
   font-weight: 600;
+}
+
+.campwp-release-title {
+  font-size: clamp(1.8rem, 2.4vw + 1rem, 2.8rem);
+  line-height: 1.15;
+  margin: 0 0 0.55rem;
+}
+
+.campwp-release-subtitle {
+  margin-top: 0;
 }
 
 .campwp-track-list-items .campwp-track-row:first-child {
@@ -255,9 +282,13 @@ body.campwp-lightbox-open {
 .campwp-album-singular .entry-title,
 .campwp-album-singular .wp-block-post-title,
 .campwp-album-singular .entry-meta,
+.campwp-album-singular .entry-byline,
 .campwp-album-singular .byline,
+.campwp-album-singular .author,
+.campwp-album-singular .posted-by,
 .campwp-album-singular .posted-on,
 .campwp-album-singular .wp-block-post-author-name,
+.campwp-album-singular .wp-block-post-author,
 .campwp-album-singular .wp-block-post-date {
   display: none;
 }

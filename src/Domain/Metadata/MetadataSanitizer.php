@@ -12,6 +12,8 @@ final class MetadataSanitizer
     private const ALBUM_RELEASE_TYPES = ['single', 'ep', 'album', 'compilation', 'other'];
 
     private const BONUS_ITEM_TYPE_ATTACHMENT = 'wp_attachment';
+    private const TRACK_AUDIO_SOURCE_TYPE_ATTACHMENT = 'attachment';
+    private const TRACK_AUDIO_SOURCE_TYPE_EXTERNAL_URL = 'external_url';
 
     public function sanitizeText(string $value): string
     {
@@ -64,6 +66,33 @@ final class MetadataSanitizer
     public function sanitizeAttachmentId(string $value): int
     {
         return max(0, absint($value));
+    }
+
+    public function sanitizeTrackAudioSourceType(string $value): string
+    {
+        $normalized = sanitize_key($value);
+        $allowed = [
+            self::TRACK_AUDIO_SOURCE_TYPE_ATTACHMENT,
+            self::TRACK_AUDIO_SOURCE_TYPE_EXTERNAL_URL,
+        ];
+
+        if (! in_array($normalized, $allowed, true)) {
+            return self::TRACK_AUDIO_SOURCE_TYPE_ATTACHMENT;
+        }
+
+        return $normalized;
+    }
+
+    public function sanitizeTrackAudioExternalUrl(string $value): string
+    {
+        $url = trim($value);
+        if ($url === '') {
+            return '';
+        }
+
+        $validated = esc_url_raw($url, ['http', 'https']);
+
+        return is_string($validated) ? $validated : '';
     }
 
     public function sanitizeReleaseType(string $value): string

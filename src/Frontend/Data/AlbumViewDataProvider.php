@@ -116,6 +116,10 @@ private function getTrackRows(int $albumId): array
         $trackArtworkId = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_ARTWORK_ID, true));
         $audioFile = $this->trackAudioResolver->getTrackPlaybackFile($trackPost->ID);
         $downloadFile = $this->trackAudioResolver->getTrackDownloadFile($trackPost->ID);
+        $downloadUrl = $this->downloadController->getTrackDownloadUrl($trackPost->ID);
+        if ($this->trackAudioResolver->getTrackSourceType($trackPost->ID) === 'external_url' && $downloadFile instanceof \CampWP\Domain\Audio\TrackAudioFile) {
+            $downloadUrl = $downloadFile->getUrl();
+        }
         $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
         $trackPermalink = get_permalink($trackPost);
 
@@ -131,7 +135,7 @@ private function getTrackRows(int $albumId): array
             'audio' => $audioFile,
             'cta' => $this->downloadCtaPresenter->present(
                 $downloadConfig,
-                $this->downloadController->getTrackDownloadUrl($trackPost->ID),
+                $downloadUrl,
                 $downloadFile !== null,
                 is_string($trackPermalink) ? $trackPermalink : ''
             ),

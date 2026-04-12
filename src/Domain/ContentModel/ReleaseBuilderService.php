@@ -229,6 +229,8 @@ final class ReleaseBuilderService
 
     private function syncTrackAudioMeta(int $trackId, int $attachmentId): void
     {
+        update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE, 'attachment');
+        delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL);
         update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $attachmentId);
         update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, $attachmentId);
 

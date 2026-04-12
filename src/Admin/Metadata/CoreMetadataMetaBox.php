@@ -141,6 +141,8 @@ final class CoreMetadataMetaBox
         $isrc = $this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_ISRC);
         $artworkId = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_ARTWORK_ID);
         $audioAttachmentId = (string) $this->getMetaIntegerValue((int) $post->ID, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
+        $audioSourceType = $this->sanitizer->sanitizeTrackAudioSourceType($this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE));
+        $externalAudioUrl = $this->sanitizer->sanitizeTrackAudioExternalUrl($this->getMetaValue((int) $post->ID, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL));
         $artistDisplayName = ($isNewPost && $artistDisplayName === '') ? (string) ($defaults['artist_display_name'] ?? '') : $artistDisplayName;
         $credits = ($isNewPost && $credits === '') ? (string) ($defaults['credits_template'] ?? '') : $credits;
 
@@ -152,6 +154,8 @@ final class CoreMetadataMetaBox
         $this->renderTextareaField('campwp_track_metadata[lyrics]', __('Lyrics', 'campwp'), $lyrics);
         $this->renderTextField('campwp_track_metadata[isrc]', __('ISRC', 'campwp'), $isrc);
         $this->renderTrackArtworkField($artworkId);
+        $this->renderTrackAudioSourceTypeField($audioSourceType);
+        $this->renderTrackExternalAudioUrlField($externalAudioUrl);
         $this->renderTrackAudioAttachmentField((int) $post->ID, $audioAttachmentId);
         $this->renderDownloadSettingsSection((int) $post->ID, false);
         echo '<p><em>' . esc_html__('Optional: store a Media Library attachment ID for track-specific artwork.', 'campwp') . '</em></p>';
@@ -198,6 +202,13 @@ final class CoreMetadataMetaBox
         $script = <<<'JS'
 (function($){
     'use strict';
+
+    function toggleTrackAudioSourceFields() {
+        var sourceType = ($('#campwp-track-audio-source-type').val() || 'attachment').toString();
+        var showExternal = sourceType === 'external_url';
+        $('#campwp-track-audio-external-url-field').toggle(showExternal);
+        $('#campwp-track-audio-attachment-field').toggle(!showExternal);
+    }
 
     function readBonusItems($input) {
         var value = $input.val();
@@ -277,6 +288,9 @@ final class CoreMetadataMetaBox
             $input.val('0').trigger('change');
         }
     });
+
+    $(document).on('change', '#campwp-track-audio-source-type', toggleTrackAudioSourceFields);
+    toggleTrackAudioSourceFields();
 
     $(document).on('click', '.campwp-bonus-select', function(event){
         event.preventDefault();
@@ -564,17 +578,33 @@ JS;
         $this->updateMeta($postId, MetadataKeys::TRACK_ISRC, $this->sanitizer->sanitizeIsrc((string) ($values['isrc'] ?? '')));
         $this->updateMeta($postId, MetadataKeys::TRACK_ARTWORK_ID, $this->sanitizer->sanitizeAttachmentId((string) ($values['artwork_id'] ?? '0')));
 
+        $audioSourceType = $this->sanitizer->sanitizeTrackAudioSourceType((string) ($values['audio_source_type'] ?? 'attachment'));
+        $externalAudioUrl = $this->sanitizer->sanitizeTrackAudioExternalUrl((string) ($values['audio_external_url'] ?? ''));
+        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE, $audioSourceType);
+
         $audioAttachmentId = $this->sanitizeTrackAudioAttachmentId((string) ($values['audio_attachment_id'] ?? '0'));
-        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $audioAttachmentId);
-        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, $audioAttachmentId);
-
-        $classification = $audioAttachmentId > 0 ? $this->audioFormatClassifier->classifyAttachment($audioAttachmentId) : ['classification' => 'unknown'];
-        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, (string) ($classification['classification'] ?? 'unknown'));
-
-        if ($audioAttachmentId === 0) {
+        if ($audioSourceType === 'external_url') {
+            $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL, $externalAudioUrl);
+            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
+            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID);
+            $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, 'unknown');
             delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID);
             delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID);
             delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID);
+            $audioAttachmentId = 0;
+        } else {
+            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL);
+            $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $audioAttachmentId);
+            $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, $audioAttachmentId);
+
+            $classification = $audioAttachmentId > 0 ? $this->audioFormatClassifier->classifyAttachment($audioAttachmentId) : ['classification' => 'unknown'];
+            $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, (string) ($classification['classification'] ?? 'unknown'));
+
+            if ($audioAttachmentId === 0) {
+                delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID);
+                delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID);
+                delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID);
+            }
         }
 
         $this->hydrateTrackMetadataFromAudioIfEmpty($postId, $audioAttachmentId);
@@ -685,8 +715,44 @@ JS;
         echo '</p>';
     }
 
+    private function renderTrackAudioSourceTypeField(string $value): void
+    {
+        $fieldId = 'campwp-track-audio-source-type';
+        $options = [
+            'attachment' => __('Attachment (Media Library)', 'campwp'),
+            'external_url' => __('External URL', 'campwp'),
+        ];
+
+        $selected = in_array($value, array_keys($options), true) ? $value : 'attachment';
+
+        echo '<p>';
+        echo '<label for="' . esc_attr($fieldId) . '">';
+        echo '<strong>' . esc_html__('Audio Source Type', 'campwp') . '</strong><br />';
+        echo '<select id="' . esc_attr($fieldId) . '" name="campwp_track_metadata[audio_source_type]" class="regular-text">';
+        foreach ($options as $optionValue => $optionLabel) {
+            echo '<option value="' . esc_attr($optionValue) . '" ' . selected($selected, $optionValue, false) . '>' . esc_html($optionLabel) . '</option>';
+        }
+        echo '</select>';
+        echo '</label>';
+        echo '</p>';
+    }
+
+    private function renderTrackExternalAudioUrlField(string $value): void
+    {
+        echo '<div id="campwp-track-audio-external-url-field">';
+        echo '<p>';
+        echo '<label for="campwp-track-audio-external-url">';
+        echo '<strong>' . esc_html__('External Audio URL', 'campwp') . '</strong><br />';
+        echo '<input type="url" class="widefat" id="campwp-track-audio-external-url" name="campwp_track_metadata[audio_external_url]" value="' . esc_attr($value) . '" placeholder="https://example.com/audio-file" />';
+        echo '</label>';
+        echo '</p>';
+        echo '<p><em>' . esc_html__('Use a direct HTTP(S) audio URL. If external mode is selected and this URL is empty/invalid, no audio will be resolved.', 'campwp') . '</em></p>';
+        echo '</div>';
+    }
+
     private function renderTrackAudioAttachmentField(int $postId, string $value): void
     {
+        echo '<div id="campwp-track-audio-attachment-field">';
         $fieldId = 'campwp-track-audio-attachment-id';
         $audioFile = $this->trackAudioResolver->getTrackAudioFile($postId);
         $audioAsset = $this->trackAudioAssetService->getForTrack($postId);
@@ -738,6 +804,7 @@ JS;
         echo 'Streaming #' . esc_html((string) $audioAsset->getStreamingAttachmentId());
         echo '. ' . esc_html__('Transcoding is not yet implemented in this pass.', 'campwp');
         echo '</small></p>';
+        echo '</div>';
     }
 
     private function renderTrackArtworkField(string $value): void

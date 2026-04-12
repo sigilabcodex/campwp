@@ -10,6 +10,9 @@ use CampWP\Domain\Metadata\MetadataKeys;
 
 final class TrackAudioResolver
 {
+    private const SOURCE_TYPE_ATTACHMENT = 'attachment';
+    private const SOURCE_TYPE_EXTERNAL_URL = 'external_url';
+
     private MediaStorageProviderInterface $storageProvider;
 
     public function __construct(MediaStorageProviderInterface $storageProvider)
@@ -74,11 +77,19 @@ final class TrackAudioResolver
 
     public function getTrackPlaybackFile(int $trackId): ?TrackAudioFile
     {
+        if ($this->getTrackSourceType($trackId) === self::SOURCE_TYPE_EXTERNAL_URL) {
+            return $this->resolveTrackAudioFileFromExternalUrl($trackId);
+        }
+
         return $this->resolveTrackAudioFileFromReferenceId($this->getTrackPlaybackReferenceId($trackId));
     }
 
     public function getTrackDownloadFile(int $trackId): ?TrackAudioFile
     {
+        if ($this->getTrackSourceType($trackId) === self::SOURCE_TYPE_EXTERNAL_URL) {
+            return $this->resolveTrackAudioFileFromExternalUrl($trackId);
+        }
+
         return $this->resolveTrackAudioFileFromReferenceId($this->getTrackDownloadReferenceId($trackId));
     }
 
@@ -100,5 +111,55 @@ final class TrackAudioResolver
     public function isValidTrackAudioReference(int $referenceId): bool
     {
         return $referenceId > 0 && $this->storageProvider->isAudioReference($referenceId);
+    }
+
+    public function getTrackSourceType(int $trackId): string
+    {
+        $sourceType = sanitize_key((string) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE, true));
+
+        if (in_array($sourceType, [self::SOURCE_TYPE_ATTACHMENT, self::SOURCE_TYPE_EXTERNAL_URL], true)) {
+            return $sourceType;
+        }
+
+        return self::SOURCE_TYPE_ATTACHMENT;
+    }
+
+    public function getTrackExternalAudioUrl(int $trackId): string
+    {
+        $url = trim((string) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL, true));
+        if ($url === '') {
+            return '';
+        }
+
+        $sanitized = esc_url_raw($url, ['http', 'https']);
+
+        return is_string($sanitized) ? $sanitized : '';
+    }
+
+    private function resolveTrackAudioFileFromExternalUrl(int $trackId): ?TrackAudioFile
+    {
+        $url = $this->getTrackExternalAudioUrl($trackId);
+        if ($url === '') {
+            return null;
+        }
+
+        return new TrackAudioFile(0, $url, $this->detectMimeTypeForUrl($url), '');
+    }
+
+    private function detectMimeTypeForUrl(string $url): string
+    {
+        $path = wp_parse_url($url, PHP_URL_PATH);
+        if (! is_string($path) || $path === '') {
+            return 'audio/mpeg';
+        }
+
+        $type = wp_check_filetype($path);
+        $mimeType = is_array($type) ? (string) ($type['type'] ?? '') : '';
+
+        if (str_starts_with($mimeType, 'audio/')) {
+            return $mimeType;
+        }
+
+        return 'audio/mpeg';
     }
 }

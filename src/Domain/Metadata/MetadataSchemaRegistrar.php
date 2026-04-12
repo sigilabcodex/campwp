@@ -186,6 +186,32 @@ final class MetadataSchemaRegistrar
                 'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
             ]
         );
+        
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_AUDIO_SOURCE_TYPE,
+            [
+                'type' => 'string',
+                'single' => true,
+                'default' => 'attachment',
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeTrackAudioSourceType((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
+
+        register_post_meta(
+            $trackPostType,
+            MetadataKeys::TRACK_AUDIO_EXTERNAL_URL,
+            [
+                'type' => 'string',
+                'single' => true,
+                'default' => '',
+                'show_in_rest' => true,
+                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeTrackAudioExternalUrl((string) $value),
+                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+            ]
+        );
 
         register_post_meta(
             $trackPostType,

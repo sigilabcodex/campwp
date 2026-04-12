@@ -47,6 +47,10 @@ final class TrackViewDataProvider
 
         $audio = $this->trackAudioResolver->getTrackPlaybackFile($track->ID);
         $downloadFile = $this->trackAudioResolver->getTrackDownloadFile($track->ID);
+        $downloadUrl = $this->downloadController->getTrackDownloadUrl($track->ID);
+        if ($this->trackAudioResolver->getTrackSourceType($track->ID) === 'external_url' && $downloadFile instanceof \CampWP\Domain\Audio\TrackAudioFile) {
+            $downloadUrl = $downloadFile->getUrl();
+        }
         $downloadConfig = $this->entitlementService->getTrackDownloadConfig($track->ID);
 
         $data = [
@@ -61,7 +65,7 @@ final class TrackViewDataProvider
             'audio' => $audio,
             'cta' => $this->downloadCtaPresenter->present(
                 $downloadConfig,
-                $this->downloadController->getTrackDownloadUrl($track->ID),
+                $downloadUrl,
                 $downloadFile !== null,
                 is_string($trackPermalink) ? $trackPermalink : ''
             ),

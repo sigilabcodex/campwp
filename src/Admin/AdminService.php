@@ -191,7 +191,13 @@ final class AdminService
         echo '<p><strong>' . esc_html__('Duration', 'campwp') . '</strong><br /><span class="campwp-editor-readonly-value" data-editor-display="duration">' . esc_html__('Not available', 'campwp') . '</span><br /><span class="description">' . esc_html__('Read-only. Duration is derived from audio metadata when available.', 'campwp') . '</span></p>';
         echo '<p><label><strong>' . esc_html__('Artist Override', 'campwp') . '</strong><br /><input type="text" class="regular-text" data-editor-field="artist_display_name" /></label></p>';
         echo '<p style="grid-column:1 / -1;"><label><strong>' . esc_html__('Credits', 'campwp') . '</strong><br /><textarea rows="3" class="large-text" data-editor-field="credits"></textarea></label></p>';
-        echo '<p style="grid-column:1 / -1; padding-top:8px; margin-top:0; border-top:1px solid #dcdcde;"><label><strong>' . esc_html__('Audio Source Attachment ID (advanced)', 'campwp') . '</strong><br /><input type="number" min="0" step="1" class="small-text" data-editor-field="audio_attachment_id" /></label><br /><span class="description">' . esc_html__('Technical/internal field used to link this track to a Media Library audio attachment.', 'campwp') . '</span></p>';
+        echo '<p style="grid-column:1 / -1; padding-top:8px; margin-top:0; border-top:1px solid #dcdcde;"><label><strong>' . esc_html__('Audio Source Type', 'campwp') . '</strong><br />';
+        echo '<select class="regular-text" data-editor-field="audio_source_type">';
+        echo '<option value="attachment">' . esc_html__('Attachment (Media Library)', 'campwp') . '</option>';
+        echo '<option value="external_url">' . esc_html__('External URL', 'campwp') . '</option>';
+        echo '</select></label></p>';
+        echo '<p data-editor-source-field="attachment" style="grid-column:1 / -1;"><label><strong>' . esc_html__('Audio Source Attachment ID (advanced)', 'campwp') . '</strong><br /><input type="number" min="0" step="1" class="small-text" data-editor-field="audio_attachment_id" /></label><br /><span class="description">' . esc_html__('Technical/internal field used to link this track to a Media Library audio attachment.', 'campwp') . '</span></p>';
+        echo '<p data-editor-source-field="external_url" style="grid-column:1 / -1;"><label><strong>' . esc_html__('External Audio URL', 'campwp') . '</strong><br /><input type="url" class="regular-text" placeholder="https://example.com/audio-file" data-editor-field="audio_external_url" /></label><br /><span class="description">' . esc_html__('Use a direct HTTP(S) audio URL. If external mode is selected and this URL is empty/invalid, no audio will be resolved.', 'campwp') . '</span></p>';
         echo '</div>';
         echo '<p class="description" id="campwp-release-track-editor-effective"></p>';
         echo '</div>';
@@ -422,6 +428,8 @@ final class AdminService
         $this->renderTrackFieldInput($trackId, 'duration', (string) $trackData['duration']);
         $this->renderTrackFieldInput($trackId, 'artist_display_name', (string) $trackData['artist_display_name']);
         $this->renderTrackFieldInput($trackId, 'credits', (string) $trackData['credits']);
+        $this->renderTrackFieldInput($trackId, 'audio_source_type', (string) $trackData['audio_source_type']);
+        $this->renderTrackFieldInput($trackId, 'audio_external_url', (string) $trackData['audio_external_url']);
         $this->renderTrackFieldInput($trackId, 'audio_attachment_id', (string) $trackData['audio_attachment_id']);
         echo '</td>';
         echo '<td><strong class="campwp-track-title" data-track-id="' . esc_attr((string) $trackId) . '">' . esc_html((string) $trackData['title']) . '</strong></td>';
@@ -452,6 +460,13 @@ final class AdminService
         $duration = (string) get_post_meta($trackId, MetadataKeys::TRACK_DURATION, true);
         $artistDisplay = (string) get_post_meta($trackId, MetadataKeys::TRACK_ARTIST_DISPLAY, true);
         $credits = (string) get_post_meta($trackId, MetadataKeys::TRACK_CREDITS, true);
+        $audioSourceType = sanitize_key((string) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE, true));
+        if (! in_array($audioSourceType, ['attachment', 'external_url'], true)) {
+            $audioSourceType = 'attachment';
+        }
+        $externalAudioUrl = trim((string) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL, true));
+        $sanitizedExternalUrl = esc_url_raw($externalAudioUrl, ['http', 'https']);
+        $externalAudioUrl = is_string($sanitizedExternalUrl) ? $sanitizedExternalUrl : '';
         $audioAttachmentId = (int) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, true);
         $audioFile = $this->trackAudioResolver->getTrackAudioFile($trackId);
 
@@ -460,6 +475,7 @@ final class AdminService
             $trackNumber > 0 ? '#' . $trackNumber : '',
             $duration !== '' ? $duration : '',
             $effectiveArtist !== '' ? $effectiveArtist : '',
+            $audioSourceType === 'external_url' ? __('External audio', 'campwp') : '',
             $this->getTrackStatusLabel((string) get_post_status($trackId)),
         ]);
 
@@ -472,14 +488,20 @@ final class AdminService
             'duration' => $duration,
             'artist_display_name' => $artistDisplay,
             'credits' => $credits,
+            'audio_source_type' => $audioSourceType,
+            'audio_external_url' => $externalAudioUrl,
             'audio_attachment_id' => $audioAttachmentId,
             'summary' => implode(' · ', $summaryParts),
-            'classification_label' => $this->getTrackClassificationLabel($audioFile),
+            'classification_label' => $this->getTrackClassificationLabel($audioFile, $audioSourceType),
         ];
     }
 
-    private function getTrackClassificationLabel(?TrackAudioFile $audioFile): string
+    private function getTrackClassificationLabel(?TrackAudioFile $audioFile, string $audioSourceType): string
     {
+        if ($audioSourceType === 'external_url') {
+            return __('Audio: External URL source', 'campwp');
+        }
+
         $classificationLabel = __('No source audio linked', 'campwp');
 
         if (! $audioFile instanceof TrackAudioFile) {
@@ -572,6 +594,17 @@ final class AdminService
                 $('[data-editor-display="duration"]').text(resolved ? resolved : 'Not available');
             }
 
+            function toggleEditorAudioSourceFields() {
+                var sourceType = (editorField('audio_source_type').val() || 'attachment').toString();
+                var isExternal = sourceType === 'external_url';
+                $('[data-editor-source-field="attachment"]').toggle(!isExternal);
+                $('[data-editor-source-field="external_url"]').toggle(isExternal);
+
+                if (activeTrackId && isExternal) {
+                    $('.campwp-track-classification[data-track-id="' + activeTrackId + '"]').text('Audio: External URL source');
+                }
+            }
+
             function summarize(trackId) {
                 var number = hiddenField(trackId, 'track_number').val() || '';
                 var duration = hiddenField(trackId, 'duration').val() || '';
@@ -603,6 +636,7 @@ final class AdminService
                     var fieldName = $(this).data('editor-field');
                     hiddenField(activeTrackId, fieldName).val($(this).val());
                 });
+                toggleEditorAudioSourceFields();
 
                 $('.campwp-track-title[data-track-id="' + activeTrackId + '"]').text(editorField('title').val() || '(untitled)');
                 summarize(activeTrackId);
@@ -631,6 +665,7 @@ final class AdminService
                     $(this).val(hiddenField(trackId, fieldName).val() || '');
                 });
                 setDurationDisplay(hiddenField(trackId, 'duration').val() || '');
+                toggleEditorAudioSourceFields();
 
                 var heading = $('.campwp-track-title[data-track-id="' + trackId + '"]').first().text();
                 $('#campwp-release-track-editor-heading').text('Track Editor: ' + heading + ' (#' + trackId + ')');
@@ -664,6 +699,8 @@ final class AdminService
                         '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="duration" name="campwp_release_builder[tracks][' + trackId + '][duration]" value="' + $('<div/>').text(track.duration || '').html() + '" />' +
                         '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="artist_display_name" name="campwp_release_builder[tracks][' + trackId + '][artist_display_name]" value="' + $('<div/>').text(track.artist_display_name || '').html() + '" />' +
                         '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="credits" name="campwp_release_builder[tracks][' + trackId + '][credits]" value="' + $('<div/>').text(track.credits || '').html() + '" />' +
+                        '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="audio_source_type" name="campwp_release_builder[tracks][' + trackId + '][audio_source_type]" value="' + $('<div/>').text(track.audio_source_type || 'attachment').html() + '" />' +
+                        '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="audio_external_url" name="campwp_release_builder[tracks][' + trackId + '][audio_external_url]" value="' + $('<div/>').text(track.audio_external_url || '').html() + '" />' +
                         '<input type="hidden" class="campwp-track-field" data-track-id="' + trackId + '" data-field="audio_attachment_id" name="campwp_release_builder[tracks][' + trackId + '][audio_attachment_id]" value="' + (track.audio_attachment_id || 0) + '" />' +
                     '</td>' +
                     '<td><strong class="campwp-track-title" data-track-id="' + trackId + '">' + $('<div/>').text(track.title || '').html() + '</strong></td>' +
@@ -687,6 +724,8 @@ final class AdminService
                 $('[data-editor-field]').each(function() {
                     $(this).val('');
                 });
+                editorField('audio_source_type').val('attachment');
+                toggleEditorAudioSourceFields();
             }
 
             function resequenceOrders() {
@@ -884,6 +923,8 @@ final class AdminService
             var firstTrack = $('.campwp-edit-track').first();
             if (firstTrack.length) {
                 loadTrack(firstTrack.data('track-id').toString());
+            } else {
+                toggleEditorAudioSourceFields();
             }
         });
 JS;

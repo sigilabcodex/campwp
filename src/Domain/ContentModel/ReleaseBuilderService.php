@@ -88,12 +88,7 @@ final class ReleaseBuilderService
         if ($audioSourceType === 'external_url') {
             $externalAudioUrl = $this->sanitizer->sanitizeTrackAudioExternalUrl((string) ($fields['audio_external_url'] ?? ''));
             $this->updateMeta($trackId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL, $externalAudioUrl);
-            delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
-            delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID);
-            delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID);
-            delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID);
-            delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID);
-            $this->updateMeta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, 'unknown');
+            $this->clearAttachmentDrivenAudioMeta($trackId);
 
             return;
         }
@@ -103,7 +98,10 @@ final class ReleaseBuilderService
         $audioAttachmentId = $this->sanitizer->sanitizeAttachmentId((string) ($fields['audio_attachment_id'] ?? '0'));
         if ($audioAttachmentId > 0 && $this->trackAudioResolver->isValidTrackAudioReference($audioAttachmentId)) {
             $this->syncTrackAudioMeta($trackId, $audioAttachmentId);
+            return;
         }
+
+        $this->clearAttachmentDrivenAudioMeta($trackId);
     }
 
     private function findAlbumTrackByAttachment(int $albumId, int $attachmentId): int
@@ -248,6 +246,16 @@ final class ReleaseBuilderService
 
         $classification = $this->audioFormatClassifier->classifyAttachment($attachmentId);
         update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, $classification['classification']);
+    }
+
+    private function clearAttachmentDrivenAudioMeta(int $trackId): void
+    {
+        delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
+        delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID);
+        delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID);
+        delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID);
+        delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID);
+        $this->updateMeta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, 'unknown');
     }
 
     /**

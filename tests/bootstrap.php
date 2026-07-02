@@ -135,8 +135,14 @@ if (! function_exists('delete_post_meta')) {
 if (! function_exists('update_post_meta')) {
     function update_post_meta($postId, $metaKey, $value): bool
     {
+        $failures = $GLOBALS['campwp_test_meta_write_failures'] ?? [];
+        $failureKey = (int) $postId . ':' . (string) $metaKey;
+        if (isset($failures[$failureKey]) || in_array((string) $metaKey, $failures, true)) {
+            return false;
+        }
+
         $GLOBALS['campwp_test_meta'][(int) $postId][$metaKey] = $value;
-        return true;
+        return ! (bool) ($GLOBALS['campwp_test_update_post_meta_return_false'] ?? false);
     }
 }
 
@@ -148,10 +154,42 @@ if (! function_exists('get_post_type')) {
 }
 
 if (! function_exists('wp_update_post')) {
-    function wp_update_post($postarr, $wpError = false): int
+    function wp_update_post($postarr, $wpError = false)
     {
+        $postId = (int) ($postarr['ID'] ?? 0);
+        if (in_array((string) ($postarr['post_title'] ?? ''), $GLOBALS['campwp_test_wp_update_post_fail_titles'] ?? [], true)) {
+            return $wpError ? new \WP_Error('update_failed', 'Simulated post update failure.') : 0;
+        }
+        if ($postId <= 0 || ! isset($GLOBALS['campwp_test_posts'][$postId])) {
+            return $wpError ? new \WP_Error('missing_post', 'Post not found.') : 0;
+        }
+
+        $post = $GLOBALS['campwp_test_posts'][$postId];
+        if ($post instanceof \WP_Post) {
+            foreach (['post_title', 'post_type', 'post_status'] as $field) {
+                if (array_key_exists($field, $postarr)) {
+                    $post->{$field} = (string) $postarr[$field];
+                }
+            }
+
+            foreach (['post_content', 'post_excerpt'] as $field) {
+                if (array_key_exists($field, $postarr)) {
+                    $post->{$field} = (string) $postarr[$field];
+                }
+            }
+
+            foreach (['post_parent', 'menu_order'] as $field) {
+                if (array_key_exists($field, $postarr)) {
+                    $post->{$field} = (int) $postarr[$field];
+                }
+            }
+
+            $GLOBALS['campwp_test_posts'][$postId] = $post;
+            $GLOBALS['campwp_test_post_types'][$postId] = $post->post_type;
+        }
+
         $GLOBALS['campwp_updated_posts'][] = $postarr;
-        return (int) ($postarr['ID'] ?? 0);
+        return $postId;
     }
 }
 
@@ -171,6 +209,7 @@ if (! function_exists('get_attached_file')) {
 
 
 $GLOBALS['campwp_test_posts'] = $GLOBALS['campwp_test_posts'] ?? [];
+$GLOBALS['campwp_test_next_post_id'] = $GLOBALS['campwp_test_next_post_id'] ?? 1000;
 $GLOBALS['campwp_test_thumbnail_ids'] = $GLOBALS['campwp_test_thumbnail_ids'] ?? [];
 $GLOBALS['campwp_test_attachment_urls'] = $GLOBALS['campwp_test_attachment_urls'] ?? [];
 $GLOBALS['campwp_test_options'] = $GLOBALS['campwp_test_options'] ?? [];
@@ -182,6 +221,10 @@ if (! class_exists('WP_Post')) {
         public string $post_title;
         public string $post_type;
         public string $post_status;
+        public string $post_content;
+        public string $post_excerpt;
+        public int $post_parent;
+        public int $menu_order;
 
         /**
          * @param array<string, mixed> $args
@@ -192,6 +235,10 @@ if (! class_exists('WP_Post')) {
             $this->post_title = (string) ($args['post_title'] ?? '');
             $this->post_type = (string) ($args['post_type'] ?? 'post');
             $this->post_status = (string) ($args['post_status'] ?? 'publish');
+            $this->post_content = (string) ($args['post_content'] ?? '');
+            $this->post_excerpt = (string) ($args['post_excerpt'] ?? '');
+            $this->post_parent = (int) ($args['post_parent'] ?? 0);
+            $this->menu_order = (int) ($args['menu_order'] ?? 0);
         }
     }
 }
@@ -280,22 +327,110 @@ if (! function_exists('get_post')) {
     }
 }
 
+if (! class_exists('WP_Error')) {
+    class WP_Error
+    {
+        private string $message;
+
+        public function __construct(string $code = '', string $message = '')
+        {
+            $this->message = $message !== '' ? $message : $code;
+        }
+
+        public function get_error_message(): string
+        {
+            return $this->message;
+        }
+    }
+}
+
+if (! function_exists('is_wp_error')) {
+    function is_wp_error($thing): bool
+    {
+        return $thing instanceof \WP_Error;
+    }
+}
+
+if (! function_exists('wp_insert_post')) {
+    function wp_insert_post($postarr, $wpError = false)
+    {
+        $title = trim((string) ($postarr['post_title'] ?? ''));
+        if (in_array($title, $GLOBALS['campwp_test_wp_insert_post_fail_titles'] ?? [], true)) {
+            return $wpError ? new \WP_Error('insert_failed', 'Simulated post insert failure.') : 0;
+        }
+        if ($title === '') {
+            return $wpError ? new \WP_Error('empty_title', 'Post title is required.') : 0;
+        }
+
+        $postId = (int) ($GLOBALS['campwp_test_next_post_id'] ?? 1000);
+        $GLOBALS['campwp_test_next_post_id'] = $postId + 1;
+
+        $post = new \WP_Post([
+            'ID' => $postId,
+            'post_title' => $title,
+            'post_type' => (string) ($postarr['post_type'] ?? 'post'),
+            'post_status' => (string) ($postarr['post_status'] ?? 'draft'),
+        ]);
+        $post->post_content = (string) ($postarr['post_content'] ?? '');
+        $post->post_excerpt = (string) ($postarr['post_excerpt'] ?? '');
+        $post->post_parent = (int) ($postarr['post_parent'] ?? 0);
+        $post->menu_order = (int) ($postarr['menu_order'] ?? 0);
+
+        $GLOBALS['campwp_test_posts'][$postId] = $post;
+        $GLOBALS['campwp_test_post_types'][$postId] = $post->post_type;
+        $GLOBALS['campwp_inserted_posts'][] = $postarr + ['ID' => $postId];
+
+        return $postId;
+    }
+}
+
 if (! function_exists('get_posts')) {
     function get_posts($args = []): array
     {
         $postType = is_array($args) ? (string) ($args['post_type'] ?? '') : '';
+        $fields = is_array($args) ? (string) ($args['fields'] ?? '') : '';
         $posts = array_values(array_filter(
             $GLOBALS['campwp_test_posts'],
             static fn ($post): bool => $post instanceof \WP_Post && ($postType === '' || $post->post_type === $postType)
         ));
 
-        if (is_array($args) && isset($args['meta_query'][0]['key'], $args['meta_query'][0]['value'])) {
-            $metaKey = (string) $args['meta_query'][0]['key'];
-            $metaValue = (string) $args['meta_query'][0]['value'];
+        if (is_array($args) && isset($args['post_status'])) {
+            $statuses = array_map('strval', (array) $args['post_status']);
             $posts = array_values(array_filter(
                 $posts,
-                static fn ($post): bool => (string) get_post_meta((int) $post->ID, $metaKey, true) === $metaValue
+                static fn ($post): bool => in_array((string) $post->post_status, $statuses, true)
             ));
+        }
+
+        if (is_array($args) && isset($args['meta_query']) && is_array($args['meta_query'])) {
+            foreach ($args['meta_query'] as $query) {
+                if (! is_array($query) || ! isset($query['key'])) {
+                    continue;
+                }
+
+                $metaKey = (string) $query['key'];
+                $compare = strtoupper((string) ($query['compare'] ?? '='));
+                $hasValue = array_key_exists('value', $query);
+                $metaValue = $hasValue ? (string) $query['value'] : '';
+
+                $posts = array_values(array_filter(
+                    $posts,
+                    static function ($post) use ($metaKey, $compare, $hasValue, $metaValue): bool {
+                        $existing = get_post_meta((int) $post->ID, $metaKey, true);
+                        $exists = $existing !== '' && $existing !== null && $existing !== [];
+
+                        if ($compare === 'NOT EXISTS') {
+                            return ! $exists;
+                        }
+
+                        if (! $hasValue) {
+                            return $exists;
+                        }
+
+                        return (string) $existing === $metaValue;
+                    }
+                ));
+            }
         }
 
         usort(
@@ -307,6 +442,15 @@ if (! function_exists('get_posts')) {
                 return [$leftOrder, (int) $left->ID] <=> [$rightOrder, (int) $right->ID];
             }
         );
+
+        $limit = is_array($args) ? (int) ($args['posts_per_page'] ?? 0) : 0;
+        if ($limit > 0) {
+            $posts = array_slice($posts, 0, $limit);
+        }
+
+        if ($fields === 'ids') {
+            return array_map(static fn ($post): int => (int) $post->ID, $posts);
+        }
 
         return $posts;
     }

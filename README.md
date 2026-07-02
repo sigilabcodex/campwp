@@ -70,4 +70,10 @@ CAMPWP now includes a provider-neutral external media and provenance schema for 
 
 Provider metadata may be unset with an empty value; explicit `direct` remains distinct. For `internet_archive` source-type tracks only, an empty track provider resolves as effective provider `internet_archive` for backward compatibility. Bandcamp URL validation accepts `bandcamp.com`, `www.bandcamp.com`, and proper artist subdomains ending in `.bandcamp.com`.
 
-See `docs/external-media-schema.md` for source types, providers, metadata keys, URL validation rules, resolver priority, source-switch cleanup behavior, and current limitations. This schema does not include an Internet Archive HTTP client, JSON importer, WP-CLI commands, bulk import tooling, remote verification, or media sideloading.
+See `docs/external-media-schema.md` for source types, providers, metadata keys, URL validation rules, resolver priority, source-switch cleanup behavior, and current limitations.
+
+## Single release manifest importer
+
+CAMPWP includes a service-layer importer for one local JSON release manifest. It validates and normalizes the manifest before writing, upserts one `campwp_album` by catalog identity plus provider plus external release identity, upserts ordered `campwp_track` posts by external track identity, supports dry-run mode, and preserves absent optional fields. It writes remote playback/original/download URLs as metadata and does not create attachments.
+
+See `docs/single-release-manifest-importer.md` for the accepted schema, identity rules, dry-run behavior, and limitations. The importer does not include an Internet Archive HTTP client, WP-CLI commands, bulk import tooling, remote verification, media downloads, or media sideloading.

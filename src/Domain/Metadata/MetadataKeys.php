@@ -20,6 +20,7 @@ final class MetadataKeys
     public const ALBUM_BONUS_ITEMS = '_campwp_album_bonus_items';
 
     public const ALBUM_SOURCE_PROVIDER = '_campwp_source_provider';
+    public const ALBUM_CATALOG_IDENTITY = '_campwp_catalog_identity';
     public const ALBUM_EXTERNAL_RELEASE_ID = '_campwp_external_release_id';
     public const ALBUM_EXTERNAL_ITEM_URL = '_campwp_external_item_url';
     public const ALBUM_INTERNET_ARCHIVE_IDENTIFIER = '_campwp_internet_archive_identifier';

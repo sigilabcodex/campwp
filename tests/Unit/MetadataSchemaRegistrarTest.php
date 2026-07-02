@@ -58,6 +58,7 @@ final class MetadataSchemaRegistrarTest extends TestCase
             ['campwp_album', MetadataKeys::ALBUM_PRODUCT_ID, 'integer', 0],
 
             ['campwp_album', MetadataKeys::ALBUM_SOURCE_PROVIDER, 'string', ''],
+            ['campwp_album', MetadataKeys::ALBUM_CATALOG_IDENTITY, 'string', ''],
             ['campwp_album', MetadataKeys::ALBUM_EXTERNAL_RELEASE_ID, 'string', ''],
             ['campwp_album', MetadataKeys::ALBUM_EXTERNAL_ITEM_URL, 'string', ''],
             ['campwp_album', MetadataKeys::ALBUM_INTERNET_ARCHIVE_IDENTIFIER, 'string', ''],

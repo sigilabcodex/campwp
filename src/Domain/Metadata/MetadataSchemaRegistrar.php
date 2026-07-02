@@ -61,6 +61,7 @@ final class MetadataSchemaRegistrar
     private function registerAlbumExternalSourceMetadata(string $albumPostType): void
     {
         register_post_meta($albumPostType, MetadataKeys::ALBUM_SOURCE_PROVIDER, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeProvider((string) $value), ''));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_CATALOG_IDENTITY, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeExternalId((string) $value)));
         register_post_meta($albumPostType, MetadataKeys::ALBUM_EXTERNAL_RELEASE_ID, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeExternalId((string) $value)));
         register_post_meta($albumPostType, MetadataKeys::ALBUM_EXTERNAL_ITEM_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value)));
         register_post_meta($albumPostType, MetadataKeys::ALBUM_INTERNET_ARCHIVE_IDENTIFIER, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeInternetArchiveIdentifier((string) $value)));

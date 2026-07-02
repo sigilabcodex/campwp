@@ -1,0 +1,63 @@
+{
+  "schema_version": "campwp-release-manifest-v1",
+  "album": {
+    "catalog_key": "test_catalog",
+    "external_release_id": "TEST001",
+    "source_provider": "direct",
+    "title": "Test Remote Album",
+    "description": "A normalized importer fixture.",
+    "artist": "Test Artist",
+    "release_date": "2026-01-02",
+    "credits": "Produced by Fixture",
+    "bandcamp_url": "https://artist.bandcamp.com/album/test-remote-album",
+    "project_url": "https://example.com/test-remote-album",
+    "license": {
+      "name": "Creative Commons Attribution 3.0 Unported",
+      "code": "cc-by-3-0",
+      "url": "https://creativecommons.org/licenses/by/3.0/"
+    },
+    "cover": {
+      "url": "https://cdn.example.com/covers/test001.jpg"
+    },
+    "provenance": {
+      "payload_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "sync_state": {
+      "sync_status": "synced",
+      "last_synced_at": "2026-01-02T03:04:05Z"
+    }
+  },
+  "tracks": [
+    {
+      "external_track_id": "TEST001-01",
+      "index": 1,
+      "track_number": 1,
+      "title": "One",
+      "source_type": "internet_archive",
+      "source_provider": "direct",
+      "duration": "03:01",
+      "playback_url": "https://cdn.example.com/audio/test001-01.mp3",
+      "original_url": "https://cdn.example.com/audio/test001-01.flac",
+      "download_url": "https://cdn.example.com/audio/test001-01.flac",
+      "original_format": "flac",
+      "playback_format": "mp3",
+      "original_size": 123,
+      "playback_size": 45,
+      "original_checksum": "md5:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "playback_checksum": "sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "derivative_status": "available"
+    },
+    {
+      "external_track_id": "TEST001-02",
+      "index": 2,
+      "track_number": 2,
+      "title": "Two",
+      "source_type": "internet_archive",
+      "source_provider": "direct",
+      "duration": "03:02",
+      "playback_url": "https://cdn.example.com/audio/test001-02.mp3",
+      "original_url": "https://cdn.example.com/audio/test001-02.flac",
+      "download_url": "https://cdn.example.com/audio/test001-02.flac"
+    }
+  ]
+}

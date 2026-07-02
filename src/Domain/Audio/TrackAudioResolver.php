@@ -7,17 +7,21 @@ namespace CampWP\Domain\Audio;
 use CampWP\Domain\Media\MediaAsset;
 use CampWP\Domain\Media\MediaStorageProviderInterface;
 use CampWP\Domain\Metadata\MetadataKeys;
+use CampWP\Domain\Metadata\MetadataSanitizer;
 
 final class TrackAudioResolver
 {
     private const SOURCE_TYPE_ATTACHMENT = 'attachment';
     private const SOURCE_TYPE_EXTERNAL_URL = 'external_url';
+    private const SOURCE_TYPE_INTERNET_ARCHIVE = 'internet_archive';
 
     private MediaStorageProviderInterface $storageProvider;
+    private MetadataSanitizer $sanitizer;
 
-    public function __construct(MediaStorageProviderInterface $storageProvider)
+    public function __construct(MediaStorageProviderInterface $storageProvider, ?MetadataSanitizer $sanitizer = null)
     {
         $this->storageProvider = $storageProvider;
+        $this->sanitizer = $sanitizer ?? new MetadataSanitizer();
     }
 
     public function getTrackPlaybackReferenceId(int $trackId): int
@@ -77,8 +81,14 @@ final class TrackAudioResolver
 
     public function getTrackPlaybackFile(int $trackId): ?TrackAudioFile
     {
-        if ($this->getTrackSourceType($trackId) === self::SOURCE_TYPE_EXTERNAL_URL) {
+        $sourceType = $this->getTrackSourceType($trackId);
+
+        if ($sourceType === self::SOURCE_TYPE_EXTERNAL_URL) {
             return $this->resolveTrackAudioFileFromExternalUrl($trackId);
+        }
+
+        if ($sourceType === self::SOURCE_TYPE_INTERNET_ARCHIVE) {
+            return $this->resolveInternetArchivePlaybackFile($trackId);
         }
 
         return $this->resolveTrackAudioFileFromReferenceId($this->getTrackPlaybackReferenceId($trackId));
@@ -86,8 +96,14 @@ final class TrackAudioResolver
 
     public function getTrackDownloadFile(int $trackId): ?TrackAudioFile
     {
-        if ($this->getTrackSourceType($trackId) === self::SOURCE_TYPE_EXTERNAL_URL) {
+        $sourceType = $this->getTrackSourceType($trackId);
+
+        if ($sourceType === self::SOURCE_TYPE_EXTERNAL_URL) {
             return $this->resolveTrackAudioFileFromExternalUrl($trackId);
+        }
+
+        if ($sourceType === self::SOURCE_TYPE_INTERNET_ARCHIVE) {
+            return $this->resolveInternetArchiveDownloadFile($trackId);
         }
 
         return $this->resolveTrackAudioFileFromReferenceId($this->getTrackDownloadReferenceId($trackId));
@@ -117,7 +133,7 @@ final class TrackAudioResolver
     {
         $sourceType = sanitize_key((string) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE, true));
 
-        if (in_array($sourceType, [self::SOURCE_TYPE_ATTACHMENT, self::SOURCE_TYPE_EXTERNAL_URL], true)) {
+        if (in_array($sourceType, [self::SOURCE_TYPE_ATTACHMENT, self::SOURCE_TYPE_EXTERNAL_URL, self::SOURCE_TYPE_INTERNET_ARCHIVE], true)) {
             return $sourceType;
         }
 
@@ -144,6 +160,74 @@ final class TrackAudioResolver
         }
 
         return new TrackAudioFile(0, $url, $this->detectMimeTypeForUrl($url), '');
+    }
+
+    private function resolveInternetArchivePlaybackFile(int $trackId): ?TrackAudioFile
+    {
+        $playbackUrl = $this->getStrictRemoteAudioUrl($trackId, MetadataKeys::TRACK_AUDIO_PLAYBACK_URL);
+        if ($playbackUrl !== '') {
+            return new TrackAudioFile(0, $playbackUrl, $this->detectMimeTypeForUrl($playbackUrl), '');
+        }
+
+        $legacyExternal = $this->resolveTrackAudioFileFromExternalUrl($trackId);
+        if ($legacyExternal instanceof TrackAudioFile) {
+            return $legacyExternal;
+        }
+
+        $originalUrl = $this->getStrictRemoteAudioUrl($trackId, MetadataKeys::TRACK_AUDIO_ORIGINAL_URL);
+        if ($originalUrl !== '' && $this->isBrowserPlayableRemoteUrl($originalUrl)) {
+            return new TrackAudioFile(0, $originalUrl, $this->detectMimeTypeForUrl($originalUrl), '');
+        }
+
+        return $this->resolveTrackAudioFileFromReferenceId($this->getTrackPlaybackReferenceId($trackId));
+    }
+
+    private function resolveInternetArchiveDownloadFile(int $trackId): ?TrackAudioFile
+    {
+        foreach ([MetadataKeys::TRACK_AUDIO_DOWNLOAD_URL, MetadataKeys::TRACK_AUDIO_ORIGINAL_URL] as $metaKey) {
+            $url = $this->getStrictRemoteAudioUrl($trackId, $metaKey);
+            if ($url !== '') {
+                return new TrackAudioFile(0, $url, $this->detectMimeTypeForUrl($url), '');
+            }
+        }
+
+        $legacyExternal = $this->resolveTrackAudioFileFromExternalUrl($trackId);
+        if ($legacyExternal instanceof TrackAudioFile) {
+            return $legacyExternal;
+        }
+
+        return $this->resolveTrackAudioFileFromReferenceId($this->getTrackDownloadReferenceId($trackId));
+    }
+
+    private function getStrictRemoteAudioUrl(int $trackId, string $metaKey): string
+    {
+        $url = trim((string) get_post_meta($trackId, $metaKey, true));
+        if ($url === '') {
+            return '';
+        }
+
+        return $this->sanitizer->sanitizeRemoteUrl($url, $this->getEffectiveRemoteProvider($trackId));
+    }
+
+    private function getEffectiveRemoteProvider(int $trackId): string
+    {
+        $provider = $this->sanitizer->sanitizeProvider((string) get_post_meta($trackId, MetadataKeys::TRACK_SOURCE_PROVIDER, true));
+        if ($provider !== '') {
+            return $provider;
+        }
+
+        if ($this->getTrackSourceType($trackId) === self::SOURCE_TYPE_INTERNET_ARCHIVE) {
+            return 'internet_archive';
+        }
+
+        return 'direct';
+    }
+
+    private function isBrowserPlayableRemoteUrl(string $url): bool
+    {
+        $mimeType = $this->detectMimeTypeForUrl($url);
+
+        return in_array($mimeType, ['audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/x-wav'], true);
     }
 
     private function detectMimeTypeForUrl(string $url): string

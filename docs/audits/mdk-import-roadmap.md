@@ -36,6 +36,8 @@ Risks:
 
 - Expanding source type enum can break hidden assumptions in admin UI and resolver logic.
 
+Implementation note for this PR: track provenance fields use track-prefixed keys such as `_campwp_track_source_payload_hash`, `_campwp_track_last_synced_at`, `_campwp_track_sync_status`, and `_campwp_track_sync_message` to avoid accidental collisions with album-level provenance fields.
+
 ## PR 2: Internet Archive Provider/Client
 
 Files likely affected:

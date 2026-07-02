@@ -195,6 +195,7 @@ final class AdminService
         echo '<select class="regular-text" data-editor-field="audio_source_type">';
         echo '<option value="attachment">' . esc_html__('Attachment (Media Library)', 'campwp') . '</option>';
         echo '<option value="external_url">' . esc_html__('External URL', 'campwp') . '</option>';
+        echo '<option value="internet_archive">' . esc_html__('Internet Archive', 'campwp') . '</option>';
         echo '</select></label></p>';
         echo '<p data-editor-source-field="attachment" style="grid-column:1 / -1;"><label><strong>' . esc_html__('Audio Source Attachment ID (advanced)', 'campwp') . '</strong><br /><input type="number" min="0" step="1" class="small-text" data-editor-field="audio_attachment_id" /></label><br /><span class="description">' . esc_html__('Technical/internal field used to link this track to a Media Library audio attachment.', 'campwp') . '</span></p>';
         echo '<p data-editor-source-field="external_url" style="grid-column:1 / -1;"><label><strong>' . esc_html__('External Audio URL', 'campwp') . '</strong><br /><input type="url" class="regular-text" placeholder="https://example.com/audio-file" data-editor-field="audio_external_url" /></label><br /><span class="description">' . esc_html__('Use a direct HTTP(S) audio URL. If external mode is selected and this URL is empty/invalid, no audio will be resolved.', 'campwp') . '</span></p>';
@@ -461,7 +462,7 @@ final class AdminService
         $artistDisplay = (string) get_post_meta($trackId, MetadataKeys::TRACK_ARTIST_DISPLAY, true);
         $credits = (string) get_post_meta($trackId, MetadataKeys::TRACK_CREDITS, true);
         $audioSourceType = sanitize_key((string) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE, true));
-        if (! in_array($audioSourceType, ['attachment', 'external_url'], true)) {
+        if (! in_array($audioSourceType, ['attachment', 'external_url', 'internet_archive'], true)) {
             $audioSourceType = 'attachment';
         }
         $externalAudioUrl = trim((string) get_post_meta($trackId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL, true));
@@ -475,7 +476,7 @@ final class AdminService
             $trackNumber > 0 ? '#' . $trackNumber : '',
             $duration !== '' ? $duration : '',
             $effectiveArtist !== '' ? $effectiveArtist : '',
-            $audioSourceType === 'external_url' ? __('External audio', 'campwp') : '',
+            $audioSourceType === 'external_url' ? __('External audio', 'campwp') : ($audioSourceType === 'internet_archive' ? __('Internet Archive audio', 'campwp') : ''),
             $this->getTrackStatusLabel((string) get_post_status($trackId)),
         ]);
 
@@ -501,6 +502,10 @@ final class AdminService
         if ($audioSourceType === 'external_url') {
             return __('Audio: External URL source', 'campwp');
         }
+        if ($audioSourceType === 'internet_archive') {
+            return __('Audio: Internet Archive source', 'campwp');
+        }
+
 
         $classificationLabel = __('No source audio linked', 'campwp');
 
@@ -597,8 +602,9 @@ final class AdminService
             function toggleEditorAudioSourceFields() {
                 var sourceType = (editorField('audio_source_type').val() || 'attachment').toString();
                 var isExternal = sourceType === 'external_url';
-                $('[data-editor-source-field="attachment"]').toggle(!isExternal);
-                $('[data-editor-source-field="external_url"]').toggle(isExternal);
+                var isAttachment = sourceType === 'attachment';
+                $("[data-editor-source-field=\"attachment\"]").toggle(isAttachment);
+                $("[data-editor-source-field=\"external_url\"]").toggle(isExternal);
 
                 if (activeTrackId && isExternal) {
                     $('.campwp-track-classification[data-track-id="' + activeTrackId + '"]').text('Audio: External URL source');

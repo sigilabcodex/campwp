@@ -89,11 +89,22 @@ final class ReleaseBuilderService
             $externalAudioUrl = $this->sanitizer->sanitizeTrackAudioExternalUrl((string) ($fields['audio_external_url'] ?? ''));
             $this->updateMeta($trackId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL, $externalAudioUrl);
             $this->clearAttachmentDrivenAudioMeta($trackId);
+            $this->clearProviderBackedAudioMeta($trackId);
+            delete_post_meta($trackId, MetadataKeys::TRACK_SOURCE_PROVIDER);
+
+            return;
+        }
+
+        if ($audioSourceType === 'internet_archive') {
+            $this->clearAttachmentDrivenAudioMeta($trackId);
+            $this->setTrackProviderIfEmpty($trackId, 'internet_archive');
 
             return;
         }
 
         delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL);
+        $this->clearProviderBackedAudioMeta($trackId);
+        delete_post_meta($trackId, MetadataKeys::TRACK_SOURCE_PROVIDER);
 
         $audioAttachmentId = $this->sanitizer->sanitizeAttachmentId((string) ($fields['audio_attachment_id'] ?? '0'));
         if ($audioAttachmentId > 0 && $this->trackAudioResolver->isValidTrackAudioReference($audioAttachmentId)) {
@@ -243,6 +254,8 @@ final class ReleaseBuilderService
         delete_post_meta($trackId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL);
         update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $attachmentId);
         update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, $attachmentId);
+        $this->clearProviderBackedAudioMeta($trackId);
+        delete_post_meta($trackId, MetadataKeys::TRACK_SOURCE_PROVIDER);
 
         $classification = $this->audioFormatClassifier->classifyAttachment($attachmentId);
         update_post_meta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, $classification['classification']);
@@ -258,6 +271,34 @@ final class ReleaseBuilderService
         $this->updateMeta($trackId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, 'unknown');
     }
 
+    private function clearProviderBackedAudioMeta(int $trackId): void
+    {
+        foreach ([
+            MetadataKeys::TRACK_AUDIO_ORIGINAL_URL,
+            MetadataKeys::TRACK_AUDIO_PLAYBACK_URL,
+            MetadataKeys::TRACK_AUDIO_DOWNLOAD_URL,
+            MetadataKeys::TRACK_AUDIO_ORIGINAL_FORMAT,
+            MetadataKeys::TRACK_AUDIO_PLAYBACK_FORMAT,
+            MetadataKeys::TRACK_AUDIO_ORIGINAL_SIZE,
+            MetadataKeys::TRACK_AUDIO_PLAYBACK_SIZE,
+            MetadataKeys::TRACK_AUDIO_ORIGINAL_CHECKSUM,
+            MetadataKeys::TRACK_AUDIO_PLAYBACK_CHECKSUM,
+            MetadataKeys::TRACK_REMOTE_DERIVATIVE_STATUS,
+        ] as $metaKey) {
+            delete_post_meta($trackId, $metaKey);
+        }
+    }
+
+    private function setTrackProviderIfEmpty(int $trackId, string $provider): void
+    {
+        $existing = $this->sanitizer->sanitizeProvider((string) get_post_meta($trackId, MetadataKeys::TRACK_SOURCE_PROVIDER, true));
+        if ($existing !== '') {
+            return;
+        }
+
+        update_post_meta($trackId, MetadataKeys::TRACK_SOURCE_PROVIDER, $provider);
+    }
+
     /**
      * @param int|string $value
      */
@@ -271,9 +312,6 @@ final class ReleaseBuilderService
         update_post_meta($trackId, $metaKey, $value);
     }
 
-    /**
-     * @param int|string $value
-     */
     private function setTrackMetaIfMissing(int $trackId, string $metaKey, $value): void
     {
         if ($value === '' || $value === 0) {

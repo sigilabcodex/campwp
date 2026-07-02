@@ -13,6 +13,7 @@ final class MetadataKeysTest extends TestCase
     {
         foreach ([
             'ALBUM_SOURCE_PROVIDER',
+            'ALBUM_CATALOG_IDENTITY',
             'ALBUM_EXTERNAL_RELEASE_ID',
             'ALBUM_EXTERNAL_ITEM_URL',
             'ALBUM_INTERNET_ARCHIVE_IDENTIFIER',

@@ -1,8 +1,8 @@
 # MDK Internet Archive Import Roadmap
 
-This roadmap intentionally stages small pull requests. It does not implement the importer yet.
+This roadmap intentionally stages small pull requests. Status reflects the runtime work completed after the original audit: the external media schema and remote-media rendering slice are complete, and the current stage adds a safe single-release manifest importer without an IA HTTP client, WP-CLI, or bulk import tooling.
 
-## PR 1: External Media Source Schema
+## PR 1: External Media Source Schema - Complete
 
 Files likely affected:
 
@@ -70,15 +70,19 @@ Risks:
 - IA metadata file naming may vary across all 148 releases.
 - HTTP behavior can differ for HEAD/range requests.
 
-## PR 3: Importer And Field Mapping
+## PR 3: Single Release Manifest Importer And Field Mapping - Current Stage
 
-Files likely affected:
+Files affected in the single-release importer slice:
 
-- `src/Domain/Import/MdkPublicationImporter.php`
-- `src/Domain/Import/MdkPublicationNormalizer.php`
-- `src/Domain/Import/ImportPlan.php`
-- `src/Domain/ContentModel/AlbumTrackRelationshipService.php`
-- `docs/audits/mdk-campwp-field-map.md`
+- `src/Application/Import/ManifestReader.php`
+- `src/Application/Import/ManifestNormalizer.php`
+- `src/Application/Import/ReleaseImporter.php`
+- `src/Application/Import/ImportResult.php`
+- `src/Application/Import/TrackImportResult.php`
+- `src/Domain/Import/ReleaseManifest.php`
+- `src/Domain/Import/TrackManifest.php`
+- `tests/Fixtures/single-release-manifest.json`
+- `docs/single-release-manifest-importer.md`
 
 Tests required:
 
@@ -98,10 +102,14 @@ Acceptance criteria:
 
 - Importer can dry-run MDK148 example and produce a deterministic plan.
 - Apply mode can create one album and ordered tracks in a test WordPress environment.
+- Repeated imports are idempotent by catalog identity, provider, external release identity, and track identity.
+- Missing tracks are preserved rather than deleted.
 
 Risks:
 
-- Source repository schema may differ from the supplied examples; direct cross-repository inspection is required before implementation.
+- Source repository schema may differ from the supplied examples; direct cross-repository inspection remains required before broad MDK use.
+- WP-CLI and bulk import safety controls remain separate later stages.
+- Legacy MDK audit manifests without explicit track IDs require stable file identities; index/title fallback is intentionally rejected.
 
 ## PR 4: WP-CLI Dry-Run/Import
 
@@ -133,7 +141,7 @@ Risks:
 
 - CLI may be run against production accidentally; command output and docs must make environment and dry-run/apply state obvious.
 
-## PR 5: Frontend Remote Playback/Download
+## PR 5: Frontend Remote Playback/Download - Complete
 
 Files likely affected:
 

@@ -84,7 +84,7 @@ final class AlbumPageRenderer
                                 <li
                                     class="campwp-track-row"
                                     data-campwp-track-id="<?php echo esc_attr((string) $track['id']); ?>"
-                                    data-campwp-title="<?php echo esc_attr((string) $track['title']); ?>"
+                                    data-campwp-title="<?php echo esc_attr((string) ($track['player_title'] ?? $track['title'])); ?>"
                                     data-campwp-duration="<?php echo esc_attr((string) ($track['duration'] ?? '')); ?>"
                                     data-campwp-audio-src="<?php echo esc_attr($audio ? $audio->getUrl() : ''); ?>"
                                     data-campwp-audio-type="<?php echo esc_attr($audio ? $audio->getMimeType() : ''); ?>"

@@ -63,3 +63,11 @@ This repository currently contains a minimal, production-safe scaffold for the C
 ## Metadata model research
 
 - See `docs/track-metadata-v2-proposal.md` for the track metadata audit, v2 proposal, compatibility strategy, and phased roadmap.
+
+## External media schema
+
+CAMPWP now includes a provider-neutral external media and provenance schema for future import/sync workflows. It preserves existing Media Library attachment audio and legacy `_campwp_track_audio_external_url` behavior, and adds an `internet_archive` track source type with separate remote playback, original, and download URL fields.
+
+Provider metadata may be unset with an empty value; explicit `direct` remains distinct. For `internet_archive` source-type tracks only, an empty track provider resolves as effective provider `internet_archive` for backward compatibility. Bandcamp URL validation accepts `bandcamp.com`, `www.bandcamp.com`, and proper artist subdomains ending in `.bandcamp.com`.
+
+See `docs/external-media-schema.md` for source types, providers, metadata keys, URL validation rules, resolver priority, source-switch cleanup behavior, and current limitations. This schema does not include an Internet Archive HTTP client, JSON importer, WP-CLI commands, bulk import tooling, remote verification, or media sideloading.

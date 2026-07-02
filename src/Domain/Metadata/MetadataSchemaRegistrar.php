@@ -31,30 +31,11 @@ final class MetadataSchemaRegistrar
 
     private function registerTrackRelationshipMeta(string $trackPostType): void
     {
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_ALBUM_ID,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => 'absint',
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
+        register_post_meta($trackPostType, MetadataKeys::TRACK_ALBUM_ID, $this->integerMetaArgs('absint'));
         register_post_meta(
             $trackPostType,
             MetadataKeys::TRACK_ORDER,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => static fn ($value): int => max(0, absint($value)),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
+            $this->integerMetaArgs(static fn ($value): int => max(0, absint($value)))
         );
     }
 
@@ -68,19 +49,32 @@ final class MetadataSchemaRegistrar
         $this->registerTextareaMeta($albumPostType, MetadataKeys::ALBUM_RELEASE_NOTES);
         $this->registerReleaseTypeMeta($albumPostType);
         $this->registerBonusItemsMeta($albumPostType);
+        $this->registerAlbumExternalSourceMetadata($albumPostType);
 
         register_post_meta(
             $albumPostType,
             MetadataKeys::ALBUM_RELEASE_DATE,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => '',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeReleaseDate((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
+            $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeReleaseDate((string) $value))
         );
+    }
+
+    private function registerAlbumExternalSourceMetadata(string $albumPostType): void
+    {
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_SOURCE_PROVIDER, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeProvider((string) $value), ''));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_EXTERNAL_RELEASE_ID, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeExternalId((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_EXTERNAL_ITEM_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_INTERNET_ARCHIVE_IDENTIFIER, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeInternetArchiveIdentifier((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_INTERNET_ARCHIVE_METADATA_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value, 'internet_archive')));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_BANDCAMP_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value, 'bandcamp')));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_PROJECT_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_LICENSE_NAME, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeText((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_LICENSE_CODE, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeFormatName((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_LICENSE_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeLicenseUrl((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_REMOTE_COVER_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_SOURCE_PAYLOAD_HASH, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeSourcePayloadHash((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_LAST_SYNCED_AT, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeIso8601Timestamp((string) $value)));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_SYNC_STATUS, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeSyncStatus((string) $value), 'never_synced'));
+        register_post_meta($albumPostType, MetadataKeys::ALBUM_SYNC_MESSAGE, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeTextarea((string) $value)));
     }
 
     private function registerReleaseTypeMeta(string $albumPostType): void
@@ -88,14 +82,7 @@ final class MetadataSchemaRegistrar
         register_post_meta(
             $albumPostType,
             MetadataKeys::ALBUM_RELEASE_TYPE,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => 'album',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeReleaseType((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
+            $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeReleaseType((string) $value), 'album')
         );
     }
 
@@ -104,14 +91,7 @@ final class MetadataSchemaRegistrar
         register_post_meta(
             $albumPostType,
             MetadataKeys::ALBUM_BONUS_ITEMS,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => '[]',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeBonusItems($value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
+            $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeBonusItems($value), '[]')
         );
     }
 
@@ -122,166 +102,48 @@ final class MetadataSchemaRegistrar
         $this->registerTextareaMeta($trackPostType, MetadataKeys::TRACK_CREDITS);
         $this->registerTextareaMeta($trackPostType, MetadataKeys::TRACK_LYRICS);
 
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_NUMBER,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizePositiveInteger((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_DURATION,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => '',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeDuration((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_ISRC,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => '',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeIsrc((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_ARTWORK_ID,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-        
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_AUDIO_SOURCE_TYPE,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => 'attachment',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeTrackAudioSourceType((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_AUDIO_EXTERNAL_URL,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => '',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeTrackAudioExternalUrl((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
-        register_post_meta(
-            $trackPostType,
-            MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
-
+        register_post_meta($trackPostType, MetadataKeys::TRACK_NUMBER, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizePositiveInteger((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_DURATION, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeDuration((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_ISRC, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeIsrc((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_ARTWORK_ID, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeTrackAudioSourceType((string) $value), 'attachment'));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeTrackAudioExternalUrl((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizeAttachmentId((string) $value)));
         register_post_meta(
             $trackPostType,
             MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => 'unknown',
-                'show_in_rest' => true,
-                'sanitize_callback' => static function ($value): string {
-                    $classification = sanitize_key((string) $value);
-                    return in_array($classification, ['lossless', 'lossy', 'unknown'], true) ? $classification : 'unknown';
-                },
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
+            $this->stringMetaArgs(static function ($value): string {
+                $classification = sanitize_key((string) $value);
+                return in_array($classification, ['lossless', 'lossy', 'unknown'], true) ? $classification : 'unknown';
+            }, 'unknown')
         );
+        $this->registerTrackExternalSourceMetadata($trackPostType);
     }
 
+    private function registerTrackExternalSourceMetadata(string $trackPostType): void
+    {
+        register_post_meta($trackPostType, MetadataKeys::TRACK_EXTERNAL_TRACK_ID, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeExternalId((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_EXTERNAL_TRACK_INDEX, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizePositiveInteger((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_SOURCE_PROVIDER, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeProvider((string) $value), ''));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_ORIGINAL_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_PLAYBACK_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_DOWNLOAD_URL, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeRemoteUrl((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_ORIGINAL_FORMAT, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeFormatName((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_PLAYBACK_FORMAT, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeFormatName((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_ORIGINAL_SIZE, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizePositiveFileSize((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_PLAYBACK_SIZE, $this->integerMetaArgs(fn ($value): int => $this->sanitizer->sanitizePositiveFileSize((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_ORIGINAL_CHECKSUM, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeChecksum((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_AUDIO_PLAYBACK_CHECKSUM, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeChecksum((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_REMOTE_DERIVATIVE_STATUS, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeDerivativeStatus((string) $value), 'unknown'));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_SOURCE_PAYLOAD_HASH, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeSourcePayloadHash((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_LAST_SYNCED_AT, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeIso8601Timestamp((string) $value)));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_SYNC_STATUS, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeSyncStatus((string) $value), 'never_synced'));
+        register_post_meta($trackPostType, MetadataKeys::TRACK_SYNC_MESSAGE, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeTextarea((string) $value)));
+    }
 
     private function registerDownloadMetadata(string $albumPostType, string $trackPostType): void
     {
@@ -299,14 +161,7 @@ final class MetadataSchemaRegistrar
         register_post_meta(
             $postType,
             $metaKey,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => $default,
-                'show_in_rest' => true,
-                'sanitize_callback' => static fn ($value): int => in_array((string) $value, ['1', 'yes', 'on', 'true'], true) ? 1 : 0,
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
+            $this->integerMetaArgs(static fn ($value): int => in_array((string) $value, ['1', 'yes', 'on', 'true'], true) ? 1 : 0, $default)
         );
     }
 
@@ -315,66 +170,58 @@ final class MetadataSchemaRegistrar
         register_post_meta(
             $postType,
             $metaKey,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => 'public',
-                'show_in_rest' => true,
-                'sanitize_callback' => static function ($value): string {
-                    $mode = sanitize_key((string) $value);
-                    return in_array($mode, ['public', 'restricted', 'purchase'], true) ? $mode : 'public';
-                },
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
+            $this->stringMetaArgs(static function ($value): string {
+                $mode = sanitize_key((string) $value);
+                return in_array($mode, ['public', 'restricted', 'purchase'], true) ? $mode : 'public';
+            }, 'public')
         );
     }
 
     private function registerProductMeta(string $postType, string $metaKey): void
     {
-        register_post_meta(
-            $postType,
-            $metaKey,
-            [
-                'type' => 'integer',
-                'single' => true,
-                'default' => 0,
-                'show_in_rest' => true,
-                'sanitize_callback' => 'absint',
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
+        register_post_meta($postType, $metaKey, $this->integerMetaArgs('absint'));
     }
 
     private function registerTextMeta(string $postType, string $metaKey): void
     {
-        register_post_meta(
-            $postType,
-            $metaKey,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => '',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeText((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
+        register_post_meta($postType, $metaKey, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeText((string) $value)));
     }
 
     private function registerTextareaMeta(string $postType, string $metaKey): void
     {
-        register_post_meta(
-            $postType,
-            $metaKey,
-            [
-                'type' => 'string',
-                'single' => true,
-                'default' => '',
-                'show_in_rest' => true,
-                'sanitize_callback' => fn ($value): string => $this->sanitizer->sanitizeTextarea((string) $value),
-                'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
-            ]
-        );
+        register_post_meta($postType, $metaKey, $this->stringMetaArgs(fn ($value): string => $this->sanitizer->sanitizeTextarea((string) $value)));
+    }
+
+    /**
+     * @param callable|string $sanitizeCallback
+     * @return array<string, mixed>
+     */
+    private function stringMetaArgs($sanitizeCallback, string $default = ''): array
+    {
+        return [
+            'type' => 'string',
+            'single' => true,
+            'default' => $default,
+            'show_in_rest' => true,
+            'sanitize_callback' => $sanitizeCallback,
+            'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+        ];
+    }
+
+    /**
+     * @param callable|string $sanitizeCallback
+     * @return array<string, mixed>
+     */
+    private function integerMetaArgs($sanitizeCallback, int $default = 0): array
+    {
+        return [
+            'type' => 'integer',
+            'single' => true,
+            'default' => $default,
+            'show_in_rest' => true,
+            'sanitize_callback' => $sanitizeCallback,
+            'auth_callback' => static fn (): bool => current_user_can('edit_posts'),
+        ];
     }
 
     private function getAlbumPostType(): string

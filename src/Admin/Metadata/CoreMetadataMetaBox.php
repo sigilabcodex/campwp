@@ -206,8 +206,9 @@ final class CoreMetadataMetaBox
     function toggleTrackAudioSourceFields() {
         var sourceType = ($('#campwp-track-audio-source-type').val() || 'attachment').toString();
         var showExternal = sourceType === 'external_url';
+        var showAttachment = sourceType === 'attachment';
         $('#campwp-track-audio-external-url-field').toggle(showExternal);
-        $('#campwp-track-audio-attachment-field').toggle(!showExternal);
+        $("#campwp-track-audio-attachment-field").toggle(showAttachment);
     }
 
     function readBonusItems($input) {
@@ -585,15 +586,18 @@ JS;
         $audioAttachmentId = $this->sanitizeTrackAudioAttachmentId((string) ($values['audio_attachment_id'] ?? '0'));
         if ($audioSourceType === 'external_url') {
             $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL, $externalAudioUrl);
-            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
-            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID);
-            $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, 'unknown');
-            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID);
-            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID);
-            delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID);
+            $this->clearAttachmentDrivenAudioMeta($postId);
+            $this->clearProviderBackedAudioMeta($postId);
+            delete_post_meta($postId, MetadataKeys::TRACK_SOURCE_PROVIDER);
+            $audioAttachmentId = 0;
+        } elseif ($audioSourceType === 'internet_archive') {
+            $this->clearAttachmentDrivenAudioMeta($postId);
+            $this->setTrackProviderIfEmpty($postId, 'internet_archive');
             $audioAttachmentId = 0;
         } else {
             delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_EXTERNAL_URL);
+            $this->clearProviderBackedAudioMeta($postId);
+            delete_post_meta($postId, MetadataKeys::TRACK_SOURCE_PROVIDER);
             $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID, $audioAttachmentId);
             $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID, $audioAttachmentId);
 
@@ -629,6 +633,44 @@ JS;
         $this->updateMeta($postId, MetadataKeys::TRACK_DOWNLOAD_ENABLED, $downloadEnabled);
         $this->updateMeta($postId, MetadataKeys::TRACK_DOWNLOAD_MODE, $downloadMode);
         $this->updateMeta($postId, MetadataKeys::TRACK_PRODUCT_ID, $productId);
+    }
+
+    private function clearAttachmentDrivenAudioMeta(int $postId): void
+    {
+        delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_ATTACHMENT_ID);
+        delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_ATTACHMENT_ID);
+        $this->updateMeta($postId, MetadataKeys::TRACK_AUDIO_SOURCE_CLASSIFICATION, 'unknown');
+        delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_MP3_ATTACHMENT_ID);
+        delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_OGG_ATTACHMENT_ID);
+        delete_post_meta($postId, MetadataKeys::TRACK_AUDIO_STREAMING_ATTACHMENT_ID);
+    }
+
+    private function clearProviderBackedAudioMeta(int $postId): void
+    {
+        foreach ([
+            MetadataKeys::TRACK_AUDIO_ORIGINAL_URL,
+            MetadataKeys::TRACK_AUDIO_PLAYBACK_URL,
+            MetadataKeys::TRACK_AUDIO_DOWNLOAD_URL,
+            MetadataKeys::TRACK_AUDIO_ORIGINAL_FORMAT,
+            MetadataKeys::TRACK_AUDIO_PLAYBACK_FORMAT,
+            MetadataKeys::TRACK_AUDIO_ORIGINAL_SIZE,
+            MetadataKeys::TRACK_AUDIO_PLAYBACK_SIZE,
+            MetadataKeys::TRACK_AUDIO_ORIGINAL_CHECKSUM,
+            MetadataKeys::TRACK_AUDIO_PLAYBACK_CHECKSUM,
+            MetadataKeys::TRACK_REMOTE_DERIVATIVE_STATUS,
+        ] as $metaKey) {
+            delete_post_meta($postId, $metaKey);
+        }
+    }
+
+    private function setTrackProviderIfEmpty(int $postId, string $provider): void
+    {
+        $existing = $this->sanitizer->sanitizeProvider((string) get_post_meta($postId, MetadataKeys::TRACK_SOURCE_PROVIDER, true));
+        if ($existing !== '') {
+            return;
+        }
+
+        update_post_meta($postId, MetadataKeys::TRACK_SOURCE_PROVIDER, $provider);
     }
 
     private function isValidNonce(string $nonceName, string $nonceAction): bool
@@ -721,6 +763,7 @@ JS;
         $options = [
             'attachment' => __('Attachment (Media Library)', 'campwp'),
             'external_url' => __('External URL', 'campwp'),
+            'internet_archive' => __('Internet Archive', 'campwp'),
         ];
 
         $selected = in_array($value, array_keys($options), true) ? $value : 'attachment';

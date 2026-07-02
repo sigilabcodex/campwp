@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace CampWP\Frontend\Data;
 
+use CampWP\Domain\Audio\TrackAudioFile;
 use CampWP\Domain\Audio\TrackAudioResolver;
 use CampWP\Domain\Commerce\EntitlementService;
 use CampWP\Domain\ContentModel\AlbumTrackRelationshipService;
 use CampWP\Domain\ContentModel\TrackMetadataInheritanceService;
 use CampWP\Domain\Media\AlbumBonusAssetResolver;
+use CampWP\Domain\Media\AlbumCover;
+use CampWP\Domain\Media\AlbumCoverResolver;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Frontend\Download\DownloadController;
 use CampWP\Frontend\Presentation\DownloadCtaPresenter;
@@ -23,8 +26,9 @@ final class AlbumViewDataProvider
     private DownloadController $downloadController;
     private DownloadCtaPresenter $downloadCtaPresenter;
     private TrackMetadataInheritanceService $inheritance;
+    private AlbumCoverResolver $coverResolver;
 
-    public function __construct()
+    public function __construct(?AlbumCoverResolver $coverResolver = null)
     {
         $mediaProvider = new WordPressMediaLibraryProvider();
 
@@ -35,6 +39,7 @@ final class AlbumViewDataProvider
         $this->downloadController = new DownloadController();
         $this->downloadCtaPresenter = new DownloadCtaPresenter($this->entitlementService);
         $this->inheritance = new TrackMetadataInheritanceService();
+        $this->coverResolver = $coverResolver ?? new AlbumCoverResolver();
     }
 
     /**
@@ -69,7 +74,7 @@ final class AlbumViewDataProvider
             'label_name' => $labelName !== '' ? $labelName : $releaseDefaults['label_name'],
             'release_notes' => $releaseNotes,
             'credits' => $credits !== '' ? $credits : $releaseDefaults['credits'],
-            'cover_html' => $this->getAlbumCoverHtml($album->ID),
+            'cover_html' => $this->getAlbumCoverHtml($album),
             'tracks' => $this->getTrackRows($album->ID),
             'unpublished_track_count' => $this->getUnpublishedAssignedTrackCount($album->ID),
             'bonus_assets' => $bonusAssets,
@@ -84,66 +89,82 @@ final class AlbumViewDataProvider
         return apply_filters('campwp_album_view_data', $data, $album);
     }
 
-    private function getAlbumCoverHtml(int $albumId): string
+    private function getAlbumCoverHtml(\WP_Post $album): string
     {
-        $coverId = get_post_thumbnail_id($albumId);
-        if ($coverId <= 0) {
+        $cover = $this->coverResolver->resolve((int) $album->ID);
+        if (! $cover instanceof AlbumCover) {
             return '';
         }
 
-        $coverHtml = wp_get_attachment_image($coverId, 'large');
+        if ($cover->isAttachment()) {
+            $coverHtml = wp_get_attachment_image($cover->getAttachmentId(), 'large');
 
-        return is_string($coverHtml) ? $coverHtml : '';
-    }
-
-/**
- * @return list<array<string, mixed>>
- */
-private function getTrackRows(int $albumId): array
-{
-    $rows = [];
-    $defaults = $this->inheritance->getReleaseDefaults($albumId);
-
-    foreach ($this->relationshipService->getTracksForAlbum($albumId) as $index => $trackPost) {
-        if ($trackPost->post_status !== 'publish') {
-            continue;
+            return is_string($coverHtml) ? $coverHtml : '';
         }
 
-        $trackSubtitle = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_SUBTITLE);
-        $trackArtistOverride = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_ARTIST_DISPLAY);
-        $trackDuration = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_DURATION);
-        $trackNumberMeta = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_NUMBER, true));
-        $trackArtworkId = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_ARTWORK_ID, true));
-        $audioFile = $this->trackAudioResolver->getTrackPlaybackFile($trackPost->ID);
-        $downloadFile = $this->trackAudioResolver->getTrackDownloadFile($trackPost->ID);
-        $downloadUrl = $this->downloadController->getTrackDownloadUrl($trackPost->ID);
-        if ($this->trackAudioResolver->getTrackSourceType($trackPost->ID) === 'external_url' && $downloadFile instanceof \CampWP\Domain\Audio\TrackAudioFile) {
-            $downloadUrl = $downloadFile->getUrl();
+        if (! $cover->isRemote()) {
+            return '';
         }
-        $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
-        $trackPermalink = get_permalink($trackPost);
 
-        $rows[] = [
-            'id' => $trackPost->ID,
-            'number' => $trackNumberMeta > 0 ? $trackNumberMeta : $index + 1,
-            'title' => get_the_title($trackPost),
-            'permalink' => is_string($trackPermalink) ? $trackPermalink : '',
-            'subtitle' => $trackSubtitle,
-            'artist_display' => $trackArtistOverride !== '' ? $trackArtistOverride : $defaults['artist_display_name'],
-            'duration' => $trackDuration,
-            'artwork_html' => $this->getTrackArtworkHtml($trackPost->ID, $trackArtworkId),
-            'audio' => $audioFile,
-            'cta' => $this->downloadCtaPresenter->present(
-                $downloadConfig,
-                $downloadUrl,
-                $downloadFile !== null,
-                is_string($trackPermalink) ? $trackPermalink : ''
-            ),
-        ];
+        return sprintf(
+            '<img src="%s" alt="%s" loading="lazy" />',
+            esc_url($cover->getUrl()),
+            esc_attr(sprintf(__('%s cover art', 'campwp'), get_the_title($album)))
+        );
     }
 
-    return $rows;
-}
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function getTrackRows(int $albumId): array
+    {
+        $rows = [];
+        $defaults = $this->inheritance->getReleaseDefaults($albumId);
+
+        foreach ($this->relationshipService->getTracksForAlbum($albumId) as $index => $trackPost) {
+            if ($trackPost->post_status !== 'publish') {
+                continue;
+            }
+
+            $trackSubtitle = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_SUBTITLE);
+            $trackArtistOverride = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_ARTIST_DISPLAY);
+            $trackDuration = $this->getMetaString($trackPost->ID, MetadataKeys::TRACK_DURATION);
+            $trackNumberMeta = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_NUMBER, true));
+            $trackArtworkId = max(0, (int) get_post_meta($trackPost->ID, MetadataKeys::TRACK_ARTWORK_ID, true));
+            $audioFile = $this->trackAudioResolver->getTrackPlaybackFile($trackPost->ID);
+            $downloadFile = $this->trackAudioResolver->getTrackDownloadFile($trackPost->ID);
+            $sourceType = $this->trackAudioResolver->getTrackSourceType($trackPost->ID);
+            $downloadUrl = $this->downloadController->getTrackDownloadUrl($trackPost->ID);
+            if (in_array($sourceType, ['external_url', 'internet_archive'], true) && $downloadFile instanceof TrackAudioFile) {
+                $downloadUrl = $downloadFile->getUrl();
+            }
+            $downloadConfig = $this->entitlementService->getTrackDownloadConfig($trackPost->ID);
+            $trackPermalink = get_permalink($trackPost);
+            $trackTitle = get_the_title($trackPost);
+            $trackArtist = $trackArtistOverride !== '' ? $trackArtistOverride : $defaults['artist_display_name'];
+
+            $rows[] = [
+                'id' => $trackPost->ID,
+                'number' => $trackNumberMeta > 0 ? $trackNumberMeta : $index + 1,
+                'title' => $trackTitle,
+                'player_title' => $this->buildArtistTitleHeading($trackArtist, $trackTitle),
+                'permalink' => is_string($trackPermalink) ? $trackPermalink : '',
+                'subtitle' => $trackSubtitle,
+                'artist_display' => $trackArtist,
+                'duration' => $trackDuration,
+                'artwork_html' => $this->getTrackArtworkHtml($trackPost->ID, $trackArtworkId),
+                'audio' => $audioFile,
+                'cta' => $this->downloadCtaPresenter->present(
+                    $downloadConfig,
+                    $downloadUrl,
+                    $downloadFile !== null,
+                    is_string($trackPermalink) ? $trackPermalink : ''
+                ),
+            ];
+        }
+
+        return $rows;
+    }
 
     private function getUnpublishedAssignedTrackCount(int $albumId): int
     {
@@ -202,6 +223,22 @@ private function getTrackRows(int $albumId): array
         $value = get_post_meta($postId, $metaKey, true);
 
         return is_string($value) ? $value : '';
+    }
+
+    private function buildArtistTitleHeading(string $artist, string $title): string
+    {
+        $artist = trim($artist);
+        $title = trim($title);
+
+        if ($artist === '') {
+            return $title;
+        }
+
+        if ($title === '') {
+            return $artist;
+        }
+
+        return sprintf('%s — %s', $artist, $title);
     }
 
     private function normalizeReleaseType(string $releaseType): string

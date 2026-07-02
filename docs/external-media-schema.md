@@ -52,7 +52,7 @@ For tracks with source type `internet_archive`, the audio resolver uses `interne
 - `_campwp_sync_status`
 - `_campwp_sync_message`
 
-Remote cover URL is metadata only in this PR. Frontend cover rendering still uses the existing featured-image attachment path.
+Remote cover URL is used as a public rendering fallback when no featured image attachment exists. Frontend featured-image attachment rendering remains the first priority.
 
 ## Track Fields
 

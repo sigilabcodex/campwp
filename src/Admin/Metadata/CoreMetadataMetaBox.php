@@ -16,6 +16,7 @@ use CampWP\Domain\Commerce\EntitlementService;
 use CampWP\Domain\Commerce\WooIntegrationService;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Domain\Metadata\MetadataSanitizer;
+use CampWP\Domain\Media\AlbumSourceProviderResolver;
 use CampWP\Domain\Media\MediaStorageProviderInterface;
 use CampWP\Infrastructure\Media\WordPressMediaLibraryProvider;
 
@@ -42,6 +43,7 @@ final class CoreMetadataMetaBox
     private AudioFormatClassifier $audioFormatClassifier;
     private AudioAssetPolicy $audioAssetPolicy;
     private TrackAudioAssetService $trackAudioAssetService;
+    private AlbumSourceProviderResolver $albumSourceProviderResolver;
 
     public function __construct(?MetadataSanitizer $sanitizer = null, ?TrackAudioResolver $trackAudioResolver = null, ?AlbumBonusAssetResolver $bonusAssetResolver = null, ?DefaultsSettings $defaultsSettings = null)
     {
@@ -55,6 +57,7 @@ final class CoreMetadataMetaBox
         $this->audioFormatClassifier = new AudioFormatClassifier();
         $this->audioAssetPolicy = new AudioAssetPolicy();
         $this->trackAudioAssetService = new TrackAudioAssetService();
+        $this->albumSourceProviderResolver = new AlbumSourceProviderResolver($this->sanitizer);
     }
 
     public function register(): void
@@ -108,6 +111,7 @@ final class CoreMetadataMetaBox
         $creditsOverride = ($isNewPost && $creditsOverride === '') ? (string) ($defaults['credits_template'] ?? '') : $creditsOverride;
 
         echo '<p>' . esc_html__('Featured image is used as album cover art.', 'campwp') . '</p>';
+        $this->renderRemoteAlbumMediaSummary((int) $post->ID);
 
         $this->renderTextField('campwp_album_metadata[subtitle]', __('Subtitle', 'campwp'), $subtitle);
         $this->renderDateField('campwp_album_metadata[release_date]', __('Release Date', 'campwp'), $releaseDate, true);
@@ -157,6 +161,7 @@ final class CoreMetadataMetaBox
         $this->renderTrackAudioSourceTypeField($audioSourceType);
         $this->renderTrackExternalAudioUrlField($externalAudioUrl);
         $this->renderTrackAudioAttachmentField((int) $post->ID, $audioAttachmentId);
+        $this->renderRemoteTrackMediaSummary((int) $post->ID);
         $this->renderDownloadSettingsSection((int) $post->ID, false);
         echo '<p><em>' . esc_html__('Optional: store a Media Library attachment ID for track-specific artwork.', 'campwp') . '</em></p>';
     }
@@ -755,6 +760,58 @@ JS;
         echo '<input type="number" min="0" step="1" class="widefat" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . ($required ? ' required="required"' : '') . ' />';
         echo '</label>';
         echo '</p>';
+    }
+
+
+    private function renderRemoteAlbumMediaSummary(int $postId): void
+    {
+        $provider = $this->sanitizer->sanitizeProvider($this->getMetaValue($postId, MetadataKeys::ALBUM_SOURCE_PROVIDER));
+        $remoteCoverUrl = $this->sanitizer->sanitizeRemoteUrl(
+            $this->getMetaValue($postId, MetadataKeys::ALBUM_REMOTE_COVER_URL),
+            $this->albumSourceProviderResolver->getEffectiveProvider($postId)
+        );
+
+        if ($provider === '' && $remoteCoverUrl === '') {
+            return;
+        }
+
+        echo '<details class="campwp-remote-media-summary"><summary>' . esc_html__('Remote media metadata', 'campwp') . '</summary>';
+        echo '<p><strong>' . esc_html__('Source provider', 'campwp') . ':</strong> ' . esc_html($provider !== '' ? $provider : __('Unset', 'campwp')) . '</p>';
+        if ($remoteCoverUrl !== '') {
+            echo '<p><strong>' . esc_html__('Remote cover URL', 'campwp') . ':</strong> <a href="' . esc_url($remoteCoverUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html($remoteCoverUrl) . '</a></p>';
+        }
+        echo '</details>';
+    }
+
+    private function renderRemoteTrackMediaSummary(int $postId): void
+    {
+        $provider = $this->sanitizer->sanitizeProvider($this->getMetaValue($postId, MetadataKeys::TRACK_SOURCE_PROVIDER));
+        $playbackUrl = $this->sanitizeRemoteTrackSummaryUrl($postId, MetadataKeys::TRACK_AUDIO_PLAYBACK_URL, $provider);
+        $downloadUrl = $this->sanitizeRemoteTrackSummaryUrl($postId, MetadataKeys::TRACK_AUDIO_DOWNLOAD_URL, $provider);
+
+        if ($provider === '' && $playbackUrl === '' && $downloadUrl === '') {
+            return;
+        }
+
+        echo '<details class="campwp-remote-media-summary"><summary>' . esc_html__('Remote audio metadata', 'campwp') . '</summary>';
+        echo '<p><strong>' . esc_html__('Source provider', 'campwp') . ':</strong> ' . esc_html($provider !== '' ? $provider : __('Unset', 'campwp')) . '</p>';
+        if ($playbackUrl !== '') {
+            echo '<p><strong>' . esc_html__('Remote playback URL', 'campwp') . ':</strong> <a href="' . esc_url($playbackUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html($playbackUrl) . '</a></p>';
+        }
+        if ($downloadUrl !== '') {
+            echo '<p><strong>' . esc_html__('Remote download URL', 'campwp') . ':</strong> <a href="' . esc_url($downloadUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html($downloadUrl) . '</a></p>';
+        }
+        echo '</details>';
+    }
+
+    private function sanitizeRemoteTrackSummaryUrl(int $postId, string $metaKey, string $provider): string
+    {
+        $effectiveProvider = $provider !== '' ? $provider : 'direct';
+        if ($this->sanitizer->sanitizeTrackAudioSourceType($this->getMetaValue($postId, MetadataKeys::TRACK_AUDIO_SOURCE_TYPE)) === 'internet_archive' && $provider === '') {
+            $effectiveProvider = 'internet_archive';
+        }
+
+        return $this->sanitizer->sanitizeRemoteUrl($this->getMetaValue($postId, $metaKey), $effectiveProvider);
     }
 
     private function renderTrackAudioSourceTypeField(string $value): void

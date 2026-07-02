@@ -23,7 +23,7 @@ final class AlbumPlayerRenderer
             if ($audio instanceof TrackAudioFile) {
                 $initialSource = $audio->getUrl();
                 $initialMime = $audio->getMimeType();
-                $initialTitle = (string) ($firstPlayableTrack['title'] ?? '');
+                $initialTitle = (string) ($firstPlayableTrack['player_title'] ?? $firstPlayableTrack['title'] ?? '');
             }
         }
         ?>

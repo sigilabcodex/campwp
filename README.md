@@ -76,4 +76,8 @@ See `docs/external-media-schema.md` for source types, providers, metadata keys, 
 
 CAMPWP includes a service-layer importer for one local JSON release manifest. It validates and normalizes the manifest before writing, upserts one `campwp_album` by catalog identity plus provider plus external release identity, upserts ordered `campwp_track` posts by external track identity, supports dry-run mode, and preserves absent optional fields. It writes remote playback/original/download URLs as metadata and does not create attachments.
 
-See `docs/single-release-manifest-importer.md` for the accepted schema, identity rules, dry-run behavior, and limitations. The importer does not include an Internet Archive HTTP client, WP-CLI commands, bulk import tooling, remote verification, media downloads, or media sideloading.
+See `docs/single-release-manifest-importer.md` for the accepted schema, identity rules, dry-run behavior, and limitations. The importer has a minimal WP-CLI invocation layer at `wp campwp import-release`; it does not include an Internet Archive HTTP client, bulk import tooling, remote verification, media downloads, or media sideloading.
+
+## WP-CLI import
+
+Use `wp campwp import-release /path/to/manifest.json --dry-run` to inspect a single local manifest, or `--apply` to create/update one release through the importer. See `docs/wp-cli-single-release-import.md` for syntax, output, exit behavior, and safety limits.

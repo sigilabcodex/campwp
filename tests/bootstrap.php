@@ -8,6 +8,74 @@ $GLOBALS['campwp_test_meta'] = [];
 $GLOBALS['campwp_registered_meta'] = [];
 $GLOBALS['campwp_deleted_meta'] = [];
 
+
+if (! class_exists('CampWpCliExitException')) {
+    class CampWpCliExitException extends \RuntimeException
+    {
+        public int $exitCode;
+
+        public function __construct(int $exitCode)
+        {
+            parent::__construct('WP_CLI halted with exit code ' . $exitCode, $exitCode);
+            $this->exitCode = $exitCode;
+        }
+    }
+}
+
+if (! class_exists('WP_CLI')) {
+    class WP_CLI
+    {
+        public static array $commands = [];
+        public static array $addCommandCalls = [];
+        public static array $lines = [];
+        public static array $warnings = [];
+        public static array $errors = [];
+
+        public static function add_command($name, $callable): void
+        {
+            self::$addCommandCalls[] = (string) $name;
+            self::$commands[(string) $name] = $callable;
+        }
+
+        public static function line($message = ''): void
+        {
+            self::$lines[] = (string) $message;
+        }
+
+        public static function success($message): void
+        {
+            self::$lines[] = 'Success: ' . (string) $message;
+        }
+
+        public static function warning($message): void
+        {
+            self::$warnings[] = (string) $message;
+        }
+
+        public static function error($message, $exit = true): void
+        {
+            self::$errors[] = (string) $message;
+            if ($exit) {
+                throw new \CampWpCliExitException(1);
+            }
+        }
+
+        public static function halt($exitCode): void
+        {
+            throw new \CampWpCliExitException((int) $exitCode);
+        }
+
+        public static function reset(): void
+        {
+            self::$commands = [];
+            self::$addCommandCalls = [];
+            self::$lines = [];
+            self::$warnings = [];
+            self::$errors = [];
+        }
+    }
+}
+
 if (! function_exists('sanitize_key')) {
     function sanitize_key($key): string
     {

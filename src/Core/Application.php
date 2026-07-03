@@ -8,6 +8,7 @@ use CampWP\Admin\AdminService;
 use CampWP\Domain\DomainService;
 use CampWP\Frontend\FrontendService;
 use CampWP\Infrastructure\InfrastructureService;
+use CampWP\Infrastructure\Cli\CliService;
 use CampWP\Integrations\IntegrationService;
 
 final class Application
@@ -23,6 +24,7 @@ final class Application
             new AdminService(),
             new DomainService(),
             new InfrastructureService(),
+            new CliService(),
             new IntegrationService(),
             new FrontendService(),
             new ImplementationReport(),

@@ -111,7 +111,7 @@ Risks:
 - WP-CLI and bulk import safety controls remain separate later stages.
 - Legacy MDK audit manifests without explicit track IDs require stable file identities; index/title fallback is intentionally rejected.
 
-## PR 4: WP-CLI Dry-Run/Import
+## PR 4: WP-CLI Single Release Dry-Run/Import - Current Stage
 
 Files likely affected:
 
@@ -133,13 +133,13 @@ Migrations/backward compatibility:
 
 Acceptance criteria:
 
-- Commands available only when `WP_CLI` is defined.
-- Dry-run is default.
-- Output includes create/update/skip/conflict counts.
+- Command registers only when `WP_CLI` is available.
+- Exactly one of `--dry-run` or `--apply` is required.
+- Output includes source identity, result status, album/track actions, counts, warnings, and errors.
 
 Risks:
 
-- CLI may be run against production accidentally; command output and docs must make environment and dry-run/apply state obvious.
+- CLI may be run against production accidentally; command requires explicit `--apply`, keeps dry-run separate, and documents exit behavior. Bulk import remains out of scope.
 
 ## PR 5: Frontend Remote Playback/Download - Complete
 

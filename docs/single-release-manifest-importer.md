@@ -1,6 +1,6 @@
 # Single Release Manifest Importer
 
-CAMPWP includes a service-layer importer for one local normalized release manifest. It is intentionally limited to local JSON input and WordPress post/meta writes. It does not fetch Internet Archive metadata, download media, sideload attachments, run bulk imports, or expose a WP-CLI command yet.
+CAMPWP includes a service-layer importer for one local normalized release manifest. It is intentionally limited to local JSON input, deterministic WordPress post/meta writes, and optional cover sideloading from an explicit manifest URL. It does not fetch Internet Archive metadata, discover remote files, or run bulk imports.
 
 ## Invocation
 
@@ -51,7 +51,13 @@ The normalized v1 shape is:
       "url": "https://creativecommons.org/licenses/by/3.0/"
     },
     "cover": {
-      "url": "https://cdn.example.com/cover.jpg"
+      "source": "direct",
+      "external_id": "TEST001:cover",
+      "url": "https://cdn.example.com/cover.jpg",
+      "filename": "cover.jpg",
+      "mime_type": "image/jpeg",
+      "strategy": "sideload_featured_image",
+      "payload_hash": "sha256:..."
     },
     "provenance": {
       "payload_hash": "sha256:..."
@@ -107,6 +113,7 @@ The importer validates:
 - Unique track external IDs and unique track indexes.
 - Known source types and providers.
 - Strict remote URLs using `MetadataSanitizer` without network access.
+- Optional cover sideload manifests when `cover.strategy` is `sideload_featured_image`: source, external ID, URL, filename, MIME type, supported image type, and optional checksum.
 - Internet Archive identifiers, checksums, ISO-8601 timestamps, sync statuses, derivative statuses, formats, and non-negative sizes.
 - Scalar values are not coerced from arrays or objects.
 - Reasonable string and track-count limits.
@@ -130,6 +137,7 @@ Album fields written when present:
 - `_campwp_license_code`
 - `_campwp_license_url`
 - `_campwp_remote_cover_url`
+- Cover sideload provenance when a cover is successfully imported: `_campwp_cover_source`, `_campwp_cover_external_id`, `_campwp_cover_source_url`, `_campwp_cover_filename`, `_campwp_cover_mime_type`, `_campwp_cover_strategy`, and `_campwp_cover_payload_hash`.
 - `_campwp_source_payload_hash`
 - `_campwp_last_synced_at`
 - `_campwp_sync_status`
@@ -151,11 +159,22 @@ Track fields written when present:
 - Remote format, size, checksum, and derivative status fields when supplied.
 - Duration and credits when supplied.
 
-Absent optional fields are preserved. The importer does not delete manually entered metadata merely because a field is absent from a later manifest. Featured images are never overwritten or cleared.
+Absent optional fields are preserved. The importer does not delete manually entered metadata merely because a field is absent from a later manifest. Featured images are never cleared. A featured image is assigned or updated only when the manifest explicitly requests `cover.strategy: "sideload_featured_image"`.
 
 ## Dry Run
 
-Dry-run mode validates, normalizes, locates existing records, and reports planned create/update/unchanged actions. It performs no post inserts, post updates, meta writes, attachment changes, or cleanup.
+Dry-run mode validates, normalizes, locates existing records, and reports planned create/update/unchanged actions for the album, tracks, and cover. It performs no post inserts, post updates, meta writes, HTTP requests, media downloads, attachment changes, featured-image changes, or cleanup.
+
+
+## Cover Sideloading
+
+A cover is optional. Missing `cover`, `cover: null`, or a cover object without `strategy` remains a no-op; a simple `cover.url` is still stored as `_campwp_remote_cover_url` for remote rendering fallback.
+
+When `cover.strategy` is `sideload_featured_image`, the manifest must already contain the resolved remote cover URL. WordPress does not query Internet Archive or any provider to discover artwork. Required fields are `source`, `external_id`, `url`, `filename`, `mime_type`, and `strategy`. Supported MIME types are `image/jpeg`, `image/png`, `image/gif`, and `image/webp`. `payload_hash` is optional and may be `sha256:`, `sha1:`, or `md5:`.
+
+Apply mode downloads the image through WordPress HTTP APIs, validates HTTP success, MIME, and image type, creates or updates a Media Library attachment, generates attachment metadata when WordPress supports it, assigns the attachment as the album featured image, and stores provenance on both the attachment and album. Re-imports reuse the existing managed attachment by cover external identity; if the same identity has a changed URL or hash, the importer updates that attachment instead of creating a duplicate where practical.
+
+Cover download, MIME, and media API failures are non-fatal. The album and tracks continue importing, the result includes a warning, and the cover result is reported as `skipped`. Malformed cover objects are validation errors and prevent writes.
 
 ## Creation And Update Behavior
 
@@ -173,6 +192,7 @@ Missing tracks in a later manifest are not deleted, trashed, or detached in this
 - `albumPostId`
 - `albumAction`: `created`, `updated`, `unchanged`, or `failed`
 - Track results with post ID, external track ID, index, and action
+- Cover result with action (`created`, `updated`, `unchanged`, or `skipped`), attachment ID, external ID, URL, and optional message
 - Created, updated, and unchanged counts
 - Warnings and errors
 - Source release identity
@@ -184,9 +204,8 @@ Metadata persistence is verified by comparing the existing value before writing 
 
 ## Current Limitations
 
-- No Internet Archive HTTP client.
+- No Internet Archive HTTP client or remote artwork discovery.
 - No remote metadata refresh or verification.
-- No WP-CLI command yet.
 - No bulk import runner.
 - No transaction wrapper; safety comes from validate-before-write, deterministic ordering, structured failures, and no destructive cleanup.
-- No attachment creation, media sideloading, or remote download.
+- No media sideloading beyond the explicit single-release cover strategy.

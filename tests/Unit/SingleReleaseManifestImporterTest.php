@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace CampWP\Tests\Unit;
 
 use CampWP\Application\Import\ManifestReader;
+use CampWP\Application\Import\Media\CoverSideloadResult;
+use CampWP\Application\Import\Media\CoverSideloaderInterface;
 use CampWP\Application\Import\ReleaseImporter;
+use CampWP\Domain\Import\CoverManifest;
 use CampWP\Domain\Metadata\MetadataKeys;
 use PHPUnit\Framework\TestCase;
 
@@ -548,6 +551,140 @@ final class SingleReleaseManifestImporterTest extends TestCase
         self::assertContains('post_status is unsupported.', $weird->errors);
     }
 
+    public function testManifestWithoutCoverSkipsCoverImport(): void
+    {
+        $manifest = $this->normalizedManifest();
+        unset($manifest['album']['cover']);
+        $sideloader = new FakeCoverSideloader();
+
+        $result = $this->importer($sideloader)->importArray($manifest);
+
+        self::assertTrue($result->isSuccess(), implode(', ', $result->errors));
+        self::assertSame('skipped', $result->coverResult?->action);
+        self::assertSame(0, $sideloader->callCount);
+        self::assertSame(0, get_post_thumbnail_id($result->albumPostId));
+    }
+
+    public function testValidCoverCreatesAttachmentAndAssignsFeaturedImage(): void
+    {
+        $manifest = $this->manifestWithSideloadCover();
+        $sideloader = new FakeCoverSideloader('sha256:' . str_repeat('b', 64));
+
+        $result = $this->importer($sideloader)->importArray($manifest);
+
+        self::assertTrue($result->isSuccess(), implode(', ', $result->errors));
+        self::assertSame('created', $result->coverResult?->action);
+        self::assertGreaterThan(0, $result->coverResult?->attachmentId ?? 0);
+        self::assertSame($result->coverResult?->attachmentId, get_post_thumbnail_id($result->albumPostId));
+        self::assertSame('TEST001:cover', get_post_meta($result->coverResult->attachmentId, MetadataKeys::ALBUM_COVER_EXTERNAL_ID, true));
+        self::assertSame('https://cdn.example.com/covers/test001.jpg', get_post_meta($result->coverResult->attachmentId, MetadataKeys::ALBUM_COVER_SOURCE_URL, true));
+        self::assertSame('sha256:' . str_repeat('b', 64), get_post_meta($result->coverResult->attachmentId, MetadataKeys::ALBUM_COVER_PAYLOAD_HASH, true));
+        self::assertSame('TEST001:cover', get_post_meta($result->albumPostId, MetadataKeys::ALBUM_COVER_EXTERNAL_ID, true));
+    }
+
+    public function testRepeatedCoverImportIsUnchangedAndDoesNotDownloadAgain(): void
+    {
+        $manifest = $this->manifestWithSideloadCover();
+        $sideloader = new FakeCoverSideloader('sha256:' . str_repeat('c', 64));
+        $importer = $this->importer($sideloader);
+        $first = $importer->importArray($manifest);
+
+        $second = $importer->importArray($manifest);
+
+        self::assertTrue($second->isSuccess(), implode(', ', $second->errors));
+        self::assertSame('unchanged', $second->coverResult?->action);
+        self::assertSame($first->coverResult?->attachmentId, $second->coverResult?->attachmentId);
+        self::assertSame(1, $sideloader->callCount);
+        self::assertSame(4, count($GLOBALS['campwp_test_posts']));
+    }
+
+    public function testChangedCoverPayloadUpdatesExistingAttachment(): void
+    {
+        $manifest = $this->manifestWithSideloadCover('sha256:' . str_repeat('d', 64));
+        $sideloader = new FakeCoverSideloader('sha256:' . str_repeat('d', 64));
+        $importer = $this->importer($sideloader);
+        $first = $importer->importArray($manifest);
+
+        $manifest['album']['cover']['payload_hash'] = 'sha256:' . str_repeat('e', 64);
+        $sideloader->payloadHash = 'sha256:' . str_repeat('e', 64);
+        $second = $importer->importArray($manifest);
+
+        self::assertTrue($second->isSuccess(), implode(', ', $second->errors));
+        self::assertSame('updated', $second->coverResult?->action);
+        self::assertSame($first->coverResult?->attachmentId, $second->coverResult?->attachmentId);
+        self::assertSame('sha256:' . str_repeat('e', 64), get_post_meta($second->coverResult->attachmentId, MetadataKeys::ALBUM_COVER_PAYLOAD_HASH, true));
+        self::assertSame(4, count($GLOBALS['campwp_test_posts']));
+    }
+
+    public function testSameCoverIdentityWithChangedUrlUpdatesExistingAttachment(): void
+    {
+        $manifest = $this->manifestWithSideloadCover();
+        $sideloader = new FakeCoverSideloader('sha256:' . str_repeat('f', 64));
+        $importer = $this->importer($sideloader);
+        $first = $importer->importArray($manifest);
+
+        $manifest['album']['cover']['url'] = 'https://cdn.example.com/covers/test001-v2.jpg';
+        $manifest['album']['cover']['filename'] = 'test001-v2.jpg';
+        $second = $importer->importArray($manifest);
+
+        self::assertTrue($second->isSuccess(), implode(', ', $second->errors));
+        self::assertSame('updated', $second->coverResult?->action);
+        self::assertSame($first->coverResult?->attachmentId, $second->coverResult?->attachmentId);
+        self::assertSame('https://cdn.example.com/covers/test001-v2.jpg', get_post_meta($second->coverResult->attachmentId, MetadataKeys::ALBUM_COVER_SOURCE_URL, true));
+    }
+
+    public function testFailedCoverDownloadIsNonFatalWarning(): void
+    {
+        $manifest = $this->manifestWithSideloadCover();
+        $sideloader = new FakeCoverSideloader('', false, 'HTTP 404.');
+
+        $result = $this->importer($sideloader)->importArray($manifest);
+
+        self::assertTrue($result->isSuccess(), implode(', ', $result->errors));
+        self::assertSame('skipped', $result->coverResult?->action);
+        self::assertNotSame([], $result->warnings);
+        self::assertSame(3, $this->countPostsOfType('campwp_album') + $this->countPostsOfType('campwp_track'));
+        self::assertSame(0, $this->countPostsOfType('attachment'));
+    }
+
+    public function testInvalidCoverMimeTypeRejectsManifestWithoutWrites(): void
+    {
+        $manifest = $this->manifestWithSideloadCover();
+        $manifest['album']['cover']['mime_type'] = 'audio/mpeg';
+
+        $result = $this->importer(new FakeCoverSideloader())->importArray($manifest);
+
+        self::assertFalse($result->isSuccess());
+        self::assertContains('cover.mime_type is unsupported.', $result->errors);
+        self::assertSame([], $GLOBALS['campwp_test_posts']);
+    }
+
+    public function testMalformedCoverObjectRejectsManifestWithoutWrites(): void
+    {
+        $manifest = $this->normalizedManifest();
+        $manifest['album']['cover'] = ['bad'];
+
+        $result = $this->importer(new FakeCoverSideloader())->importArray($manifest);
+
+        self::assertFalse($result->isSuccess());
+        self::assertContains('cover must be an object.', $result->errors);
+        self::assertSame([], $GLOBALS['campwp_test_posts']);
+    }
+
+    public function testDryRunCoverPerformsNoDownloadOrWrite(): void
+    {
+        $manifest = $this->manifestWithSideloadCover();
+        $sideloader = new FakeCoverSideloader();
+
+        $result = $this->importer($sideloader)->importArray($manifest, true);
+
+        self::assertTrue($result->isSuccess(), implode(', ', $result->errors));
+        self::assertSame('created', $result->coverResult?->action);
+        self::assertSame(0, $sideloader->callCount);
+        self::assertSame([], $GLOBALS['campwp_test_posts']);
+        self::assertSame([], $GLOBALS['campwp_test_meta']);
+    }
+
     public function testLocalFileReaderRejectsUrlWrappersAndDirectories(): void
     {
         $reader = new ManifestReader();
@@ -581,9 +718,30 @@ final class SingleReleaseManifestImporterTest extends TestCase
         return dirname(__DIR__, 2) . '/' . $relative;
     }
 
-    private function importer(): ReleaseImporter
+    private function importer(?CoverSideloaderInterface $sideloader = null): ReleaseImporter
     {
-        return new ReleaseImporter();
+        return new ReleaseImporter(null, null, $sideloader);
+    }
+
+
+    /** @return array<string, mixed> */
+    private function manifestWithSideloadCover(string $payloadHash = ''): array
+    {
+        $manifest = $this->normalizedManifest();
+        $manifest['album']['cover'] = [
+            'source' => 'direct',
+            'external_id' => 'TEST001:cover',
+            'url' => 'https://cdn.example.com/covers/test001.jpg',
+            'filename' => 'test001.jpg',
+            'mime_type' => 'image/jpeg',
+            'strategy' => 'sideload_featured_image',
+        ];
+
+        if ($payloadHash !== '') {
+            $manifest['album']['cover']['payload_hash'] = $payloadHash;
+        }
+
+        return $manifest;
     }
 
     private function countPostsOfType(string $postType): int
@@ -608,5 +766,43 @@ final class SingleReleaseManifestImporterTest extends TestCase
         }
 
         return 0;
+    }
+}
+
+final class FakeCoverSideloader implements CoverSideloaderInterface
+{
+    public int $callCount = 0;
+
+    public function __construct(
+        public string $payloadHash = 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        private readonly bool $success = true,
+        private readonly string $message = ''
+    ) {
+    }
+
+    public function sideload(CoverManifest $cover, int $albumId, int $existingAttachmentId = 0): CoverSideloadResult
+    {
+        $this->callCount++;
+        if (! $this->success) {
+            return new CoverSideloadResult(false, 0, '', $this->message);
+        }
+
+        $attachmentId = $existingAttachmentId;
+        if ($attachmentId <= 0) {
+            $inserted = wp_insert_post([
+                'post_type' => 'attachment',
+                'post_status' => 'inherit',
+                'post_title' => $cover->filename,
+                'post_parent' => $albumId,
+            ], true);
+            $attachmentId = is_wp_error($inserted) ? 0 : (int) $inserted;
+        }
+
+        if ($attachmentId > 0) {
+            $GLOBALS['campwp_test_attachment_mimes'][$attachmentId] = $cover->mimeType;
+            $GLOBALS['campwp_test_attachment_urls'][$attachmentId] = 'https://media.example.test/' . $cover->filename;
+        }
+
+        return new CoverSideloadResult(true, $attachmentId, $this->payloadHash);
     }
 }

@@ -31,6 +31,13 @@ final class MetadataKeys
     public const ALBUM_LICENSE_CODE = '_campwp_license_code';
     public const ALBUM_LICENSE_URL = '_campwp_license_url';
     public const ALBUM_REMOTE_COVER_URL = '_campwp_remote_cover_url';
+    public const ALBUM_COVER_SOURCE = '_campwp_cover_source';
+    public const ALBUM_COVER_EXTERNAL_ID = '_campwp_cover_external_id';
+    public const ALBUM_COVER_SOURCE_URL = '_campwp_cover_source_url';
+    public const ALBUM_COVER_FILENAME = '_campwp_cover_filename';
+    public const ALBUM_COVER_MIME_TYPE = '_campwp_cover_mime_type';
+    public const ALBUM_COVER_STRATEGY = '_campwp_cover_strategy';
+    public const ALBUM_COVER_PAYLOAD_HASH = '_campwp_cover_payload_hash';
     public const ALBUM_SOURCE_PAYLOAD_HASH = '_campwp_source_payload_hash';
     public const ALBUM_LAST_SYNCED_AT = '_campwp_last_synced_at';
     public const ALBUM_SYNC_STATUS = '_campwp_sync_status';

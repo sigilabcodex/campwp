@@ -2,7 +2,7 @@
 
 CAMPWP supports attachment-based audio and legacy generic external audio URLs. This schema extends that model with provider-neutral external media and provenance fields for future importers and integrations.
 
-This document describes schema and resolver behavior only. CAMPWP does not yet include an Internet Archive HTTP client, JSON importer, WP-CLI importer, bulk import tooling, remote verification, or media sideload workflow.
+This document describes schema and resolver behavior. CAMPWP does not include an Internet Archive HTTP client, bulk import tooling, or remote catalog verification. The single-release importer may sideload a cover only from an explicit manifest URL.
 
 ## Source Types
 
@@ -47,12 +47,19 @@ For tracks with source type `internet_archive`, the audio resolver uses `interne
 - `_campwp_license_code`
 - `_campwp_license_url`
 - `_campwp_remote_cover_url`
+- `_campwp_cover_source`
+- `_campwp_cover_external_id`
+- `_campwp_cover_source_url`
+- `_campwp_cover_filename`
+- `_campwp_cover_mime_type`
+- `_campwp_cover_strategy`
+- `_campwp_cover_payload_hash`
 - `_campwp_source_payload_hash`
 - `_campwp_last_synced_at`
 - `_campwp_sync_status`
 - `_campwp_sync_message`
 
-Remote cover URL is used as a public rendering fallback when no featured image attachment exists. Frontend featured-image attachment rendering remains the first priority.
+Remote cover URL is used as a public rendering fallback when no featured image attachment exists. Frontend featured-image attachment rendering remains the first priority. Cover sideload provenance fields identify Media Library attachments managed by the single-release importer and are also mirrored on the album after a successful cover sync.
 
 ## Track Fields
 

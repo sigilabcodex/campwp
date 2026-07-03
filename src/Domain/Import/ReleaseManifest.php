@@ -19,7 +19,8 @@ final class ReleaseManifest
         public readonly string $content,
         public readonly string $postStatus,
         public readonly array $albumMeta,
-        public readonly array $tracks
+        public readonly array $tracks,
+        public readonly ?CoverManifest $cover
     ) {
     }
 

@@ -20,10 +20,13 @@
   "archive_state": null,
   "cover": {
     "source": "internet_archive",
-    "url": null,
-    "mime_type": null,
-    "strategy": null,
-    "note": "Cover URL and sideload strategy must come from the canonical import payload or IA metadata."
+    "external_id": "MDK148:cover",
+    "url": "https://archive.org/download/mdk148-the-trade-wind-desert-soundscape/cover.png",
+    "filename": "cover.png",
+    "mime_type": "image/png",
+    "strategy": "sideload_featured_image",
+    "payload_hash": "sha1:232f18b81e7b059dbc3f65a2424f3db87c95a213",
+    "note": "Resolved from the canonical manifest/IA metadata before WordPress import; CAMPWP does not query Internet Archive."
   },
   "archive_metadata": {
     "metadata_api_url": "https://archive.org/metadata/mdk148-the-trade-wind-desert-soundscape",

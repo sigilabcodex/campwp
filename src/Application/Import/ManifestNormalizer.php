@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CampWP\Application\Import;
 
+use CampWP\Domain\Import\CoverManifest;
 use CampWP\Domain\Import\ReleaseManifest;
 use CampWP\Domain\Import\TrackManifest;
 use CampWP\Domain\Metadata\MetadataKeys;
@@ -71,6 +72,7 @@ final class ManifestNormalizer
         $content = $this->firstString($album, ['description', 'content'], true, $errors, 'description');
         $postStatus = $this->postStatus($album, $errors);
         $tracks = $this->normalizeTracks($tracksRaw, $externalReleaseId, $provider, $schemaVersion, $errors);
+        $cover = $this->normalizeCover($album, $provider, $errors);
 
         if ($errors !== []) {
             return ['manifest' => null, 'errors' => array_values(array_unique($errors)), 'warnings' => $warnings];
@@ -86,7 +88,8 @@ final class ManifestNormalizer
                 $this->sanitizer->sanitizeTextarea($content),
                 $postStatus,
                 $albumMeta,
-                $tracks
+                $tracks,
+                $cover
             ),
             'errors' => [],
             'warnings' => $warnings,
@@ -180,6 +183,78 @@ final class ManifestNormalizer
         $this->setSyncStatus($meta, MetadataKeys::ALBUM_SYNC_STATUS, $this->firstString($syncState, ['sync_status'], true, $errors, 'sync status'), $errors, 'sync status');
 
         return $meta;
+    }
+
+    /**
+     * @param array<string, mixed> $album
+     * @param list<string> $errors
+     */
+    private function normalizeCover(array $album, string $provider, array &$errors): ?CoverManifest
+    {
+        if (! array_key_exists('cover', $album) || $album['cover'] === null) {
+            return null;
+        }
+
+        if (! is_array($album['cover']) || array_is_list($album['cover'])) {
+            $errors[] = 'cover must be an object.';
+            return null;
+        }
+
+        $cover = $album['cover'];
+        $strategy = $this->stringField($cover, 'strategy', true, $errors, 'cover.strategy');
+        if ($strategy === '') {
+            return null;
+        }
+
+        if ($strategy !== 'sideload_featured_image') {
+            $errors[] = 'cover.strategy is unsupported.';
+            return null;
+        }
+
+        $source = $this->sanitizer->sanitizeProvider($this->stringField($cover, 'source', true, $errors, 'cover.source'));
+        if ($source === '') {
+            $source = $provider;
+        }
+        if ($source === '') {
+            $errors[] = 'cover.source is required.';
+        }
+
+        $externalId = $this->sanitizer->sanitizeExternalId($this->stringField($cover, 'external_id', false, $errors, 'cover.external_id'));
+        if ($externalId === '') {
+            $errors[] = 'cover.external_id is required or invalid.';
+        }
+
+        $url = $this->stringField($cover, 'url', false, $errors, 'cover.url');
+        $url = $this->sanitizer->sanitizeRemoteUrl($url, $source !== '' ? $source : $provider);
+        if ($url === '') {
+            $errors[] = 'cover.url is unsafe or unsupported.';
+        }
+
+        $filename = $this->stringField($cover, 'filename', false, $errors, 'cover.filename');
+        $filename = basename(str_replace('\\', '/', $filename));
+        $filename = $this->sanitizer->sanitizeText($filename);
+        if ($filename === '' || str_contains($filename, '/') || str_contains($filename, '\\')) {
+            $errors[] = 'cover.filename is required or invalid.';
+        }
+
+        $mimeType = strtolower($this->stringField($cover, 'mime_type', false, $errors, 'cover.mime_type'));
+        if (! in_array($mimeType, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
+            $errors[] = 'cover.mime_type is unsupported.';
+        }
+
+        $payloadHash = $this->stringField($cover, 'payload_hash', true, $errors, 'cover.payload_hash');
+        if ($payloadHash !== '') {
+            $payloadHash = $this->sanitizer->sanitizeChecksum($payloadHash);
+            if ($payloadHash === '') {
+                $errors[] = 'cover.payload_hash is invalid.';
+            }
+        }
+
+        if ($source === '' || $externalId === '' || $url === '' || $filename === '' || $mimeType === '') {
+            return null;
+        }
+
+        return new CoverManifest($source, $externalId, $url, $filename, $mimeType, $strategy, $payloadHash);
     }
 
     /**

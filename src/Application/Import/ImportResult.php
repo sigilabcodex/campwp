@@ -22,7 +22,8 @@ final class ImportResult
         public readonly array $errors,
         public readonly string $sourceReleaseIdentity,
         public readonly bool $dryRun,
-        public readonly string $status = ''
+        public readonly string $status = '',
+        public readonly ?CoverImportResult $coverResult = null
     ) {
     }
 
@@ -40,9 +41,7 @@ final class ImportResult
         return $this->errors === [];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function toArray(): array
     {
         return [
@@ -57,6 +56,7 @@ final class ImportResult
             'source_release_identity' => $this->sourceReleaseIdentity,
             'dry_run' => $this->dryRun,
             'status' => $this->status,
+            'cover' => ($this->coverResult ?? new CoverImportResult('skipped', 0, '', '', 'No cover provided.'))->toArray(),
         ];
     }
 }

@@ -134,6 +134,14 @@ final class ImportReleaseCommand
             $result->unchangedCount
         ));
 
+        if ($result->coverResult instanceof \CampWP\Application\Import\CoverImportResult) {
+            \WP_CLI::line(sprintf(
+                'Cover: %s%s',
+                $result->coverResult->action,
+                $result->coverResult->attachmentId > 0 ? sprintf(' (#%d)', $result->coverResult->attachmentId) : ''
+            ));
+        }
+
         if ($result->trackResults !== []) {
             \WP_CLI::line('Tracks:');
             foreach ($result->trackResults as $trackResult) {
@@ -198,6 +206,7 @@ final class ImportReleaseCommand
             'source_release_identity' => '',
             'dry_run' => false,
             'status' => $status,
+            'cover' => (new \CampWP\Application\Import\CoverImportResult('skipped', 0, '', '', 'No cover provided.'))->toArray(),
         ]));
     }
 

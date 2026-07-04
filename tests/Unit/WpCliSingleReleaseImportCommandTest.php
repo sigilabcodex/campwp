@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CampWP\Tests\Unit;
 
+use CampWP\Application\Import\CoverImportResult;
 use CampWP\Application\Import\ImportResult;
 use CampWP\Domain\Metadata\MetadataKeys;
 use CampWP\Infrastructure\Cli\CliService;
@@ -202,6 +203,60 @@ final class WpCliSingleReleaseImportCommandTest extends TestCase
         self::assertStringNotContainsString('playback_url', $output);
     }
 
+    /**
+     * @dataProvider coverTableResults
+     */
+    public function testTableOutputPrintsCoverAction(string $action, int $attachmentId, string $status, array $warnings, string $expectedLine): void
+    {
+        $exit = $this->commandReturningResult($this->resultWithCover($action, $attachmentId, $status, $warnings))->run([$this->fixturePath()], ['apply' => true]);
+
+        self::assertSame(0, $exit);
+        self::assertStringContainsString($expectedLine, $this->cliOutput());
+        self::assertStringContainsString('Warnings: ' . count($warnings), $this->cliOutput());
+        self::assertSame($warnings, \WP_CLI::$warnings);
+    }
+
+    /** @return list<array{string,int,string,list<string>,string}> */
+    public static function coverTableResults(): array
+    {
+        return [
+            ['created', 321, 'success', [], 'Cover: created (#321)'],
+            ['updated', 322, 'success', [], 'Cover: updated (#322)'],
+            ['unchanged', 323, 'unchanged', [], 'Cover: unchanged (#323)'],
+            ['skipped', 0, 'success', ['Cover sideload skipped: HTTP 404.'], 'Cover: skipped'],
+        ];
+    }
+
+    /**
+     * @dataProvider coverJsonResults
+     */
+    public function testJsonOutputIncludesCoverResult(string $action, int $attachmentId, string $status, array $warnings): void
+    {
+        $exit = $this->commandReturningResult($this->resultWithCover($action, $attachmentId, $status, $warnings))->run([$this->fixturePath()], ['apply' => true, 'format' => 'json']);
+        $decoded = $this->decodeSingleJsonOutput();
+
+        self::assertSame(0, $exit);
+        self::assertSame($status, $decoded['status']);
+        self::assertSame($action, $decoded['cover']['action']);
+        self::assertSame($attachmentId, $decoded['cover']['attachment_id']);
+        self::assertSame('TEST001:cover', $decoded['cover']['external_id']);
+        self::assertSame('https://cdn.example.test/cover.jpg', $decoded['cover']['url']);
+        self::assertSame($warnings, $decoded['warnings']);
+        self::assertSame([], \WP_CLI::$warnings);
+        self::assertSame([], \WP_CLI::$errors);
+    }
+
+    /** @return list<array{string,int,string,list<string>}> */
+    public static function coverJsonResults(): array
+    {
+        return [
+            ['created', 321, 'success', []],
+            ['updated', 322, 'success', []],
+            ['unchanged', 323, 'unchanged', []],
+            ['skipped', 0, 'success', ['Cover sideload skipped: HTTP 404.']],
+        ];
+    }
+
     public function testDryRunInvalidManifestReturnsNonZeroAndPrintsErrors(): void
     {
         $manifest = $this->manifest();
@@ -375,6 +430,30 @@ final class WpCliSingleReleaseImportCommandTest extends TestCase
     private function command(): ImportReleaseCommand
     {
         return new ImportReleaseCommand();
+    }
+
+    private function commandReturningResult(ImportResult $result): ImportReleaseCommand
+    {
+        return new ImportReleaseCommand(null, static fn (): ImportResult => $result);
+    }
+
+    /** @param list<string> $warnings */
+    private function resultWithCover(string $action, int $attachmentId, string $status, array $warnings): ImportResult
+    {
+        return new ImportResult(
+            100,
+            'unchanged',
+            [],
+            0,
+            0,
+            1,
+            $warnings,
+            [],
+            'test_catalog:TEST001',
+            false,
+            $status,
+            new CoverImportResult($action, $attachmentId, 'TEST001:cover', 'https://cdn.example.test/cover.jpg')
+        );
     }
 
     private function failingCommand(string $message): ImportReleaseCommand

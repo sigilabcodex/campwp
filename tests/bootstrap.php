@@ -647,6 +647,16 @@ if (! function_exists('get_post_thumbnail_id')) {
     }
 }
 
+if (! function_exists('set_post_thumbnail')) {
+    function set_post_thumbnail($post, $thumbnailId): bool
+    {
+        $postId = $post instanceof \WP_Post ? $post->ID : (int) $post;
+        $GLOBALS['campwp_test_thumbnail_ids'][$postId] = (int) $thumbnailId;
+        update_post_meta($postId, '_thumbnail_id', (int) $thumbnailId);
+        return true;
+    }
+}
+
 if (! function_exists('wp_get_attachment_image')) {
     function wp_get_attachment_image($attachmentId, $size = 'thumbnail'): string
     {

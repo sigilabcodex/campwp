@@ -169,6 +169,6 @@
   "validation": {
     "contains_credentials": false,
     "contains_local_paths": false,
-    "media_sideload_requested": false
+    "media_sideload_requested": true
   }
 }

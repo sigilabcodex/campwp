@@ -168,7 +168,12 @@ final class ManifestNormalizer
         $this->setLicenseUrl($meta, MetadataKeys::ALBUM_LICENSE_URL, $this->firstString($license, ['url'], true, $errors, 'license URL'), $errors);
 
         $cover = isset($album['cover']) && is_array($album['cover']) ? $album['cover'] : [];
-        $this->setRemoteUrl($meta, MetadataKeys::ALBUM_REMOTE_COVER_URL, $this->firstString($cover, ['url'], true, $errors, 'remote cover URL'), $provider, $errors, 'remote cover URL');
+        $coverProvider = $provider;
+        $coverSource = $this->sanitizer->sanitizeProvider($this->stringField($cover, 'source', true, $errors, 'cover.source'));
+        if ($coverSource !== '') {
+            $coverProvider = $coverSource;
+        }
+        $this->setRemoteUrl($meta, MetadataKeys::ALBUM_REMOTE_COVER_URL, $this->firstString($cover, ['url'], true, $errors, 'remote cover URL'), $coverProvider, $errors, 'remote cover URL');
 
         $this->setText($meta, MetadataKeys::ALBUM_ARTIST_DISPLAY, $this->firstString($album, ['artist', 'artist_display'], true, $errors, 'artist'));
         $this->setText($meta, MetadataKeys::ALBUM_RELEASE_DATE, $this->sanitizer->sanitizeReleaseDate($this->firstString($album, ['release_date'], true, $errors, 'release date')));

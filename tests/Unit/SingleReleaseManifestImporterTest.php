@@ -582,6 +582,53 @@ final class SingleReleaseManifestImporterTest extends TestCase
         self::assertSame('TEST001:cover', get_post_meta($result->albumPostId, MetadataKeys::ALBUM_COVER_EXTERNAL_ID, true));
     }
 
+    public function testInternetArchiveAlbumAllowsDirectCoverSourceForSafeHttpsCover(): void
+    {
+        $manifest = $this->manifestWithSideloadCover();
+        $manifest["album"]["source_provider"] = "internet_archive";
+        $manifest["album"]["catalog_key"] = "internet_archive";
+        $manifest["album"]["internet_archive_url"] = "https://archive.org/details/test001";
+        $manifest["album"]["internet_archive_identifier"] = "test001";
+        $manifest["album"]["cover"]["source"] = "direct";
+        $manifest["album"]["cover"]["url"] = "https://lab.m-d-k.cc/wp-content/uploads/campwp-smoke/mdk148-cover.png";
+        $manifest["album"]["cover"]["filename"] = "mdk148-cover.png";
+        $sideloader = new FakeCoverSideloader("sha256:" . str_repeat("1", 64));
+
+        $result = $this->importer($sideloader)->importArray($manifest);
+
+        self::assertTrue($result->isSuccess(), implode(", ", $result->errors));
+        self::assertSame("created", $result->coverResult?->action);
+        self::assertSame("https://lab.m-d-k.cc/wp-content/uploads/campwp-smoke/mdk148-cover.png", get_post_meta($result->albumPostId, MetadataKeys::ALBUM_REMOTE_COVER_URL, true));
+        self::assertSame("direct", get_post_meta($result->albumPostId, MetadataKeys::ALBUM_COVER_SOURCE, true));
+    }
+
+    public function testInternetArchiveCoverSourceStillRejectsNonArchiveCoverUrl(): void
+    {
+        $manifest = $this->manifestWithSideloadCover();
+        $manifest["album"]["source_provider"] = "internet_archive";
+        $manifest["album"]["catalog_key"] = "internet_archive";
+        $manifest["album"]["internet_archive_url"] = "https://archive.org/details/test001";
+        $manifest["album"]["internet_archive_identifier"] = "test001";
+        $manifest["album"]["cover"]["source"] = "internet_archive";
+        $manifest["album"]["cover"]["url"] = "https://lab.m-d-k.cc/wp-content/uploads/campwp-smoke/mdk148-cover.png";
+        $manifest["album"]["cover"]["filename"] = "mdk148-cover.png";
+
+        $result = $this->importer(new FakeCoverSideloader())->importArray($manifest);
+
+        self::assertFalse($result->isSuccess());
+        self::assertContains("remote cover URL is unsafe or unsupported.", $result->errors);
+        self::assertContains("cover.url is unsafe or unsupported.", $result->errors);
+        self::assertSame([], $GLOBALS["campwp_test_posts"]);
+    }
+
+    public function testMdkInternetArchiveCoverFixtureStillPassesValidation(): void
+    {
+        $result = $this->importer(new FakeCoverSideloader("sha256:" . str_repeat("2", 64)))->importArray($this->mdkManifest(), true);
+
+        self::assertTrue($result->isSuccess(), implode(", ", $result->errors));
+        self::assertSame("created", $result->coverResult?->action);
+    }
+
     public function testRepeatedCoverImportIsUnchangedAndDoesNotDownloadAgain(): void
     {
         $manifest = $this->manifestWithSideloadCover();
